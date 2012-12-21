@@ -6,6 +6,7 @@ use warnings;
 use Log::Any '$log';
 
 use Fcntl ':flock';
+use Time::HiRes 'time';
 
 # VERSION
 
@@ -29,13 +30,18 @@ sub new {
     }
 
     $args{histories} //= 10;
+
+    bless \%args, $class;
 }
 
 # file path, without the rotate suffix
 sub file_path {
     my ($self) = @_;
 
-    my @lt = localtime();
+    # _now is calculated every time we access this method
+    $self->{_now} = time();
+
+    my @lt = localtime($self->{_now});
     $lt[5] += 1900;
     $lt[4]++;
 
@@ -45,7 +51,7 @@ sub file_path {
             $period = sprintf(".%04d", $lt[5]);
         } elsif ($self->{period} =~ /month/i) {
             $period = sprintf(".%04d-%02d", $lt[5], $lt[4]);
-        } elsif ($self->{period} =~ /day/i) {
+        } elsif ($self->{period} =~ /day|daily/i) {
             $period = sprintf(".%04d-%02d-%02d", $lt[5], $lt[4], $lt[3]);
         }
     } else {
@@ -61,499 +67,215 @@ sub file_path {
     );
 }
 
-# BEGIN adapted from LDFR
-
-
-sub print {
-    my $self = shift;
-    my %p = @_;
-
-        my $max_size = $self->{size};
-        my $numfiles = $self->{max};
-        my $name     = $self->{params}->{filename};
-        my $fh       = $self->{LDF}->{fh};
-
-        # Prime our time based data outside the critical code area
-        my ($in_time_mode,$time_to_rotate) = $self->time_to_rotate();
-
-        # Handle critical code for logging. No changes if someone else is in
-        if( !$self->lfhlock_test() )
-        {
-                warn "$$ waiting on lock\n" if $self->{debug};
-                unless($self->lfhlock())
-                {
-                        warn "$$ failed to get lock. returning\n" if $self->{debug};
-                        return;
-                }
-                warn "$$ got lock after wait\n" if $self->{debug};
-        }
-
-        my $size   = (stat($fh))[7];   # Stat the handle to get real size
-        my $inode  = (stat($fh))[1];   # get real inode
-        my $finode = (stat($name))[1]; # Stat the name for comparision
-        warn localtime()." $$  s=$size, i=$inode, f=".
-                        (defined $finode ? $finode : "undef") .
-                         ", n=$name\n" if $self->{debug};
-
-        # If finode and inode are the same then nobody has done a rename
-        # under us and we can continue. Otherwise just close and reopen.
-        # Time mode overrides Size mode
-        if(!defined($finode) || $inode != $finode)
-        {
-                # Oops someone moved things on us. So just reopen our log
-                delete $self->{LDF};  # Should get rid of current LDF
-                $self->{LDF} =  Log::Dispatch::File->new(%{$self->{params}});  # Our log
-
-                warn localtime()." $$ Someone else rotated: normal log\n" if $self->{debug};
-                $self->logit($p{message});
-        }
-        elsif($in_time_mode && !$time_to_rotate)
-        {
-                warn localtime()." $$ In time mode: normal log\n" if $self->{debug};
-                $self->logit($p{message});
-        }
-        elsif(!$in_time_mode && defined($size) && $size < $max_size )
-        {
-                warn localtime()." $$ In size mode: normal log\n" if $self->{debug};
-                $self->logit($p{message});
-        }
-        # Need to rotate
-        elsif(($in_time_mode && $time_to_rotate) ||
-              (!$in_time_mode && $size)
-                 )
-        {
-                # Shut down the log
-                delete $self->{LDF};  # Should get rid of current LDF
-
-                my $idx = $numfiles -1;
-
-                warn localtime() . " $$ Rotating\n" if $self->{debug};
-                while($idx >= 0)
-                {
-                        if($idx <= 0)
-                        {
-                                warn "$$ rename $name $name.1\n" if $self->{debug};
-                                rename($name, "$name.1");
-                        }
-                        else
-                        {
-                                warn "$$ rename $name.$idx $name.".($idx+1)."\n" if $self->{debug};
-                                rename("$name.$idx", "$name.".($idx+1));
-                        }
-
-                        $idx--;
-                }
-                warn localtime() . " $$ Rotating Done\n" if $self->{debug};
-
-                # reopen the logfile for writing.
-                $self->{LDF} =  Log::Dispatch::File->new(%{$self->{params}});  # Our log
-
-                # Write it out
-                warn localtime()." $$ rotated: normal log\n" if $self->{debug};
-                $self->logit($p{message});
-        }
-        #else size is zero :-} just don't do anything!
-
-        $self->lfhunlock();
+sub lock_file_path {
+    my ($self) = @_;
+    join(
+        '',
+        $self->{dir}, '/',
+        $self->{prefix},
+        '.lck'
+    );
 }
 
-sub DESTROY
-{
-    my $self = shift;
+# locking is used to prevent multiple writer processes from clobbering one
+# another's write. here we (re)open the lock file (as well as creating it if it
+# does not already exist), flock it with LOCK_NB, trying several times up to a
+# minute if fails to get a lock, then die if still fails. i think this is the
+# best compromise compared to: 1) flock without LOCK_NB (blocks indefinitely,
+# potentially causing multiple processes to pile up); 2) buffering writes (only
+# delaying the disaster, buffered data will be lost anyway unless written to
+# another file); 3) ignoring lock (clobbering).
 
-    if ( $self->{LDF} )
-    {
-                delete $self->{LDF};  # Should get rid of current LDF
+# note: reopening also solves problem with shared lock between parent and forked
+# children (this is a note from Log::Dispatch::FileRotate).
+
+# note: ideally, lock should not be held for more than a fraction of a second.
+# that's why we lock after each single print and immediately unlock it again. we
+# also only lock when creating an empty compressed old file, we do not hold lock
+# while compressing.
+
+# the _lock and _unlock routines might be refactored into a module someday. i
+# like this better than File::Flock (which is rather heavy) and
+# File::Flock::Tiny (which does not have unlink-if-created-by-us feature).
+
+# return 1 if we lock, 0 if already locked, dies on error/failure to get lock
+sub _lock {
+    my ($self) = @_;
+
+    # already locked
+    return 0 if $self->{_lfh};
+
+    my $lfp = $self->lock_file_path;
+    my $exists = (-f $lfp);
+    open $self->{_lfh}, ">>", $lfp or die "Can't open lock file '$lfp': $!";
+    my $tries = 0;
+    while (1) {
+        $tries++;
+        last if flock($self->{_lfh}, LOCK_EX | LOCK_NB);
+        $tries > 60 and die "Can't acquire lock on '$lfp' after 1 minute";
+        sleep 1;
+    }
+    $self->{_created_lock_file} = !$exists;
+    1;
+}
+
+# return 1 if we unlock, 0 if already unlocked
+sub _unlock {
+    my ($self) = @_;
+
+    my $lfp = $self->lock_file_path;
+
+    return 0 unless $self->{_lfh};
+
+    # delete first to avoid race condition (i.e. we delete lock file created by
+    # other process)
+    unlink $lfp if delete($self->{_created_lock_file});
+
+    flock $self->{_lfh}, LOCK_UN;
+    close delete($self->{_lfh});
+    1;
+}
+
+# rename (increase rotation suffix) and keep only n histories. note: failure in
+# rotating should not be fatal, we just warn and return.
+sub _rotate {
+    my ($self) = @_;
+
+    my $locked = $self->_lock;
+    # each entry is [filename without compress suffix, rotate_suffix (for
+    # sorting), period (for sorting), compress suffix (for renaming back)]
+    my @files;
+
+    opendir my($dh), $self->{dir} or do {
+        warn "Can't opendir '$self->{dir}': $!, rotate skipped";
+        return;
+    };
+    while (my $e = readdir($dh)) {
+        my $compress_suffix = $1 if $e =~ s/(\.gz)\z//;
+
+        next unless $e =~ /\A\Q$self->{prefix}\E
+                           (?:\. (?<period>\d{4}(?:-\d\d(?:-\d\d)?)?) )?
+                           \Q$self->{suffix}\E
+                           (?:\. (?<rotate_suffix>\d+) )?
+                           \z
+                          /x;
+        push @files, [$e, $+{rotate_suffix} // 0, $+{period} // "",
+                      $compress_suffix // ""];
+    }
+    closedir($dh);
+
+    my $i;
+    my $dir = $self->{dir};
+    for my $f (sort {$b->[1] <=> $a->[1] || $a->[2] cmp $b->[2]} @files) {
+        my ($orig, $rsuffix, $period, $cs) = @$f;
+        $i++;
+        if ($i <= @files-$self->{histories}) {
+            $log->trace("Deleting old rotated file $dir/$orig$cs ...");
+            unlink "$dir/$orig$cs" or warn "Can't delete $dir/$orig$cs: $!";
+            next;
+        }
+        my $new = $orig;
+        if ($rsuffix) {
+            $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
+        } elsif (!$period || delete($self->{_tmp_hack_give_suffix_to_fp})) {
+            $new .= ".1";
+        }
+        if ($new ne $orig) {
+            $log->trace(
+                "Renaming rotated file $dir/$orig$cs -> $dir/$new$cs ...");
+            rename "$dir/$orig$cs", "$dir/$new$cs"
+                or warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
+        }
     }
 
-        # Clean up locks
-        close $self->{lfh} if $self->{lfh};
-        unlink $self->{lf} if -f $self->{lf};
+    $self->_unlock if $locked;
 }
 
-sub logit
-{
-        my $self = $_[0];
+# (re)open file and optionally rotate if necessary
+sub _rotate_and_open {
+    my ($self) = @_;
 
-        $self->lock();
-        $self->{LDF}->log_message(message => $_[1]);
-        $self->unlock();
-        return;
+    my $fp = $self->file_path;
+    my ($do_open, $do_rotate) = @_;
+
+    my @st = stat($fp);
+    unless (-e _) {
+        # file does not exist yet, create
+        $do_open++;
+        goto DOIT;
+    }
+    die "Can't stat '$fp': $!" unless @st;
+    my $finode = $st[1];
+
+    # file is not opened yet, open
+    unless ($self->{_fh}) {
+        $do_open++;
+        goto DOIT;
+    }
+
+    # period has changed, rotate
+    if ($self->{_fp} ne $fp) {
+        $do_rotate++;
+        goto DOIT;
+    }
+
+    # check whether size has been exceeded
+    my $inode;
+    if ($self->{size} > 0) {
+        @st       = stat($self->{_fh});
+        my $size  = $st[7];
+        $inode    = $st[1];
+        if ($size >= $self->{size}) {
+            $do_rotate++;
+            $self->{_tmp_hack_give_suffix_to_fp} = 1;
+            goto DOIT;
+        }
+    }
+
+    # check whether other process has rename/rotate under us (for example,
+    # 'prefix' has been moved to 'prefix.1'), in which case we need to reopen
+    if ($inode && $finode != $inode) {
+        $do_open++;
+        goto DOIT;
+    }
+
+  DOIT:
+    # rotate
+    if ($do_rotate) {
+        $self->_rotate;
+    }
+
+    # (re)open
+    if ($do_open || $do_rotate) {
+        open $self->{_fh}, ">>", $fp or die "Can't open '$fp': $!";
+        $self->{_fp} = $fp;
+    }
 }
 
+sub write {
+    my $self = shift;
 
-###########################################################################
-#
-# Subroutine time_to_rotate
-#
-#       Args: none
-#
-#       Rtns: (1,n)  if we are in time mode and its time to rotate
-#                    n defines the number of timers that expired
-#             (1,0)  if we are in time mode but not ready to rotate
-#             (0,0)  otherwise
-#
-# Description:
-#     time_to_rotate - update internal clocks and return status as
-#     defined above
-#
-# If we have just been created then the first recurrance is an indication
-# to check against the log file.
-#
-#
-#       my ($in_time_mode,$time_to_rotate) = $self->time_to_rotate();
-sub time_to_rotate
-{
-    my $self   = shift;        # My object
-        my $mode   = defined($self->{'recurrance'});
-        my $rotate = 0;
-
-        if($mode)
-        {
-                # Then do some checking and update ourselves if we think we need
-                # to rotate. Wether we rotate or not is up to our caller. We
-                # assume they know what they are doing!
-
-                # Only stat the log file here if we are in our first invocation.
-                my $ftime = 0;
-                if($self->{'new'})
-                {
-                        # Last time the log file was changed
-                        $ftime   = (stat($self->{LDF}{fh}))[9];
-
-                        # In Date::Manip format
-                        # $ftime   = ParseDate(scalar(localtime($ftime)));
-                }
-
-                # Check need for rotation. Loop through our recurrances looking
-                # for expiration times. Any we find that have expired we update.
-                my $tm    = $self->{timer}->();
-                my @recur = @{$self->{'recurrance'}};
-                @{$self->{'recurrance'}} = ();
-                for my $rec (@recur)
-                {
-                        my ($abs,$pat) = @$rec;
-
-                        # Extra checking
-                        unless(defined $abs && $abs)
-                        {
-                                warn "Bad time found for recurrance pattern $pat: $abs\n";
-                                next;
-                        }
-                        my $dorotate = 0;
-
-                        # If this is first time through
-                        if($self->{'new'})
-                        {
-                                # If it needs a rotate then flag it
-                                if($ftime <= $abs)
-                                {
-                                        # Then we need to rotate
-                                        warn "Need rotate file($ftime) <= $abs\n" if $self->{debug};
-                                        $rotate++;
-                                        $dorotate++;  # Just for debugging
-                                }
-
-                                # Move to next occurance regardless
-                                warn "Dropping initial occurance($abs)\n" if $self->{debug};
-                                $abs = $self->_get_next_occurance($pat);
-                                unless(defined $abs && $abs)
-                                {
-                                        warn "Next occurance is null for $pat\n";
-                                        $abs = 0;
-                                }
-                        }
-                        # Elsif it is time to rotate
-                        #elsif(Date_Cmp($abs,$tm) <= 0)
-                        elsif($abs <= $tm)
-                        {
-                                # Then we need to rotate
-                                warn "Need rotate $abs <= $tm\n" if $self->{debug};
-                                $abs = $self->_get_next_occurance($pat);
-                                unless(defined $abs && $abs)
-                                {
-                                        warn "Next occurance is null for $pat\n";
-                                        $abs = 0;
-                                }
-                                $rotate++;
-                                $dorotate++;  # Just for debugging
-                        }
-                        push(@{$self->{'recurrance'}},[$abs,$pat]) if $abs;
-                        warn "time_to_rotate(mode,rotate,next) => ($mode,$dorotate,$abs)\n" if $self->{debug};
-                }
-
-        }
-
-        $self->{'new'} = 0;  # No longer brand-spankers
-
-        warn "time_to_rotate(mode,rotate) => ($mode,$rotate)\n" if $self->{debug};
-        return wantarray ? ($mode,$rotate) : $rotate;
+    my $locked = $self->_lock;
+    $self->_rotate_and_open;
+    my $fh = $self->{_fh};
+    print $fh @_; # print syntax limitation?
+    $self->_unlock if $locked;
 }
 
-###########################################################################
-#
-# Subroutine _gen_occurance
-#
-#       Args: Date::Manip occurance pattern
-#
-#       Rtns: array of dates for next few events
-#
-#  If asked we will return an inital occurance that is before the current
-#  time. This can be used to see if we need to rotate on start up. We are
-#  often called by CGI (short lived) proggies :-(
-#
-sub _gen_occurance
-{
-    my $self = shift;        # My object
-    my $pat  = shift;
-
-        # Do we return an initial occurance before the current time?
-        my $initial = shift || 0;
-
-        my $range = '';
-        my $base  = 'now'; # default to calcs based on the current time
-
-        if($pat =~ /^0:0:0:0:0/) # Small recurrance less than 1 hour
-        {
-                $range = "4 hours later";
-                $base  = "1 hours ago" if $initial;
-        }
-        elsif($pat =~ /^0:0:0:0/) # recurrance less than 1 day
-        {
-                $range = "4 days later";
-                $base  = "1 days ago" if $initial;
-        }
-        elsif($pat =~ /^0:0:0:/) #  recurrance less than 1 week
-        {
-                $range = "4 weeks later";
-                $base  = "1 weeks ago" if $initial;
-        }
-        elsif($pat =~ /^0:0:/) #  recurrance less than 1 month
-        {
-                $range = "4 months later";
-                $base  = "1 months ago" if $initial;
-        }
-        elsif($pat =~ /^0:/) #  recurrance less than 1 year
-        {
-                $range = "24 months later";
-                $base  = "24 months ago" if $initial;
-        }
-        else # years
-        {
-                my($yrs) = $pat =~ m/^(\d+):/;
-                $yrs = 1 unless $yrs;
-                my $months = $yrs * 4 * 12;
-
-                $range = "$months months later";
-                $base  = "$months months ago" if $initial;
-        }
-
-        # The next date must start at least 1 second away from now other wise
-        # we may rotate for every message we recieve with in this second :-(
-        my $start = DateCalc($base,"+ 1 second");
-
-        warn "ParseRecur($pat,$base,$start,$range);\n" if $self->{debug};
-        my @dates = ParseRecur($pat,$base,$start,$range);
-
-        # Just in case we have a bad parse or our assumptions are wrong.
-        # We default to days
-        unless(scalar @dates >= 2)
-        {
-                warn "Failed to parse ($pat). Going daily\n";
-                @dates = ParseRecur('0:0:0:1*0:0:0',"now","now","1 months later");
-                if($initial)
-                {
-                        @dates = ParseRecur('0:0:0:1*0:0:0',"2 days ago","2 days ago","1 months later");
-                }
-        }
-
-        # Convert the dates to seconds since the epoch so we can use
-        # numerical comparision instead of textual
-        my @epochs = ();
-        my @a = ('%Y','%m','%d','%H','%M','%S');
-        foreach(@dates)
-        {
-                my($y,$m,$d,$h,$mn,$s) = Date::Manip::UnixDate($_, @a);
-                my $e = Date_SecsSince1970GMT($m,$d,$y,$h,$mn,$s);
-                if( $self->{debug} )
-                {
-                        warn "Date to epochs ($_) => ($e)\n";
-                }
-                push @epochs, $e;
-        }
-
-        # Clean out all but the one previous to now if we are doing an
-        # initial occurance
-        my $now = time();
-        if($initial)
-        {
-                my $before = '';
-                while(@epochs && ( $epochs[0] <= $now) )
-                {
-                        $before = shift(@epochs);
-                        #warn "Shifting $before\n";
-                }
-                #warn "Unshifting $before\n";
-                unshift(@epochs,$before) if $before;
-        }
-        else
-        {
-                # Clean out dates that occur before now, being careful not to loop
-                # forever (thanks James).
-                shift(@epochs) while @epochs && ( $epochs[0] <= $now);
-        }
-
-        if($self->{debug})
-        {
-                warn "Recurrances are at: ".join("\n\t", @dates),"\n";
-        }
-        warn "No recurrances found! Probably a timezone issue!\n" unless @dates;
-
-        return @epochs;
+sub compress {
+    my ($self) = @_;
+    die "Not yet implemented";
 }
 
-###########################################################################
-#
-# Subroutine _get_next_occurance
-#
-#       Args: Date::Manip occurance pattern
-#
-#       Rtns: date
-#
-# We don't want to call Date::Manip::ParseRecur too often as it is very
-# expensive. So, we cache what is returned from _gen_occurance().
-sub _get_next_occurance
-{
-    my $self = shift;        # My object
-    my $pat  = shift;
-
-        # (ms) Throw out expired occurances
-        my $now = $self->{timer}->();
-        if(defined $self->{'dates'}{$pat})
-        {
-                while( @{$self->{'dates'}{$pat}} )
-                {
-                        last if $self->{'dates'}{$pat}->[0] >= $now;
-                        shift @{$self->{'dates'}{$pat}};
-                }
-        }
-
-        # If this is first time then generate some new ones including one
-        # before our time to test against the log file
-        if(!defined $self->{'dates'}{$pat})
-        {
-                @{$self->{'dates'}{$pat}} = $self->_gen_occurance($pat,1);
-        }
-        # Elsif close to the end of what we have
-        elsif( scalar(@{$self->{'dates'}{$pat}}) < 2)
-        {
-                @{$self->{'dates'}{$pat}} = $self->_gen_occurance($pat);
-        }
-
-        return( shift(@{$self->{'dates'}{$pat}}) );
+sub DESTROY {
+    my ($self) = @_;
+    $self->_unlock;
 }
-
-
-# Lock and unlock routines. For when we need to write a message.
-use Fcntl ':flock'; # import LOCK_* constants
-
-sub lock
-{
-        my $self = shift;
-
-        flock($self->{LDF}->{fh},LOCK_EX);
-
-        # Make sure we are at the EOF
-        seek($self->{LDF}->{fh}, 0, 2);
-
-        warn localtime() ." $$ Locked\n" if $self->{debug};
-        return;
-}
-
-sub unlock
-{
-        my $self = shift;
-        flock($self->{LDF}->{fh},LOCK_UN);
-        warn localtime() . " $$ unLocked\n" if $self->{debug};
-}
-
-# Lock and unlock routines. For when we need to roll the logs.
-#
-# Note: On May 1, Dan Waldheim's good news was:
-# I discovered something interesting about forked processes and locking.
-# If the parent "open"s the filehandle and then forks, exclusive locks
-# don't work properly between the parent and children.  Anyone can grab a
-# lock while someone else thinks they have it.  To work properly the
-# "open" has to be done within each process.
-#
-# Thanks Dan
-sub lfhlock_test
-{
-        my $self = shift;
-
-        if (open(LFH, ">>$self->{lf}"))
-        {
-                $self->{lfh} = *LFH;
-                if (flock($self->{lfh}, LOCK_EX | LOCK_NB))
-                {
-                        warn "$$ got lock on Lock File ".$self->{lfh}."\n" if $self->{debug};
-                        return 1;
-                }
-        }
-        else
-        {
-                $self->{lfh} = 0;
-                warn "$$ couldn't get lock on Lock File\n" if $self->{debug};
-                return 0;
-        }
-}
-
-sub lfhlock
-{
-        my $self = shift;
-
-        if (!$self->{lfh})
-        {
-                if (!open(LFH, ">>$self->{lf}"))
-                {
-                        return 0;
-                }
-                $self->{lfh} = *LFH;
-        }
-
-        flock($self->{lfh},LOCK_EX);
-}
-
-sub lfhunlock
-{
-        my $self = shift;
-
-        if($self->{lfh})
-        {
-                flock($self->{lfh},LOCK_UN);
-                close $self->{lfh};
-                $self->{lfh} = 0;
-        }
-}
-
-# END adapted from LDFR
-
-sub write {}
-
-sub compress {}
-
-sub lock {}
-
-sub unlock {}
-
-sub rotate {}
-
-sub time_to_rotate {}
 
 1;
 #ABSTRACT: Write to files that archive/rotate themselves
 
-=for Pod::Coverage ^(file_path|time_to_rotate|lock|unlock|rotate)$
+=for Pod::Coverage ^(file_path|lock_file_path|DESTROY)$
 
 =head1 SYNOPSIS
 
@@ -570,8 +292,8 @@ sub time_to_rotate {}
  # write, will write to /var/log/myapp.log, automatically rotate old log files
  # to myapp.log.1 when myapp.log reaches 25MB. will keep old log files up to
  # myapp.log.12.
- $fwr->print("This is a line\n");
- $fwr->print("This is another line\n");
+ $fwr->write("This is a line\n");
+ $fwr->write("This is", " another line\n");
 
  # compress old log files
  $fwr->compress;
@@ -654,6 +376,10 @@ variable or equivalent methods to set time zone.
 Suffix to give to file names, usually file extension like C<.log>. See C<prefix>
 for more details.
 
+If you use a yearly period, setting suffix is advised to avoid ambiguity with
+rotate suffix (for example, is C<myapp.2012> the current file for year 2012 or
+file with C<2012> rotate suffix?)
+
 =item * size => INT (default: 10*1024*1024)
 
 Maximum file size, in bytes, before rotation is triggered. The default is 10MB
@@ -682,8 +408,8 @@ L<Log::Dispatch::FileRotate>, from which the code of this module is based on.
 Differences between File::Write::Rotate (FWR) and Log::Dispatch::FileRotate
 (LDFR) are as follows. Firstly, FWR is not part of L<Log::Dispatch> family. FWR
 does not use L<Date::Manip> (to be tinier) and does not support DatePattern;
-instead, FWR replaces it with a simple daily/monthly/yearly period. FWR allows
-locking to be optional. FWR supports
+instead, FWR replaces it with a simple daily/monthly/yearly period. FWR supports
+compressing and rotating compressed old files.
 
 L<Tie::Handle::FileRotate>, which uses this module.
 
