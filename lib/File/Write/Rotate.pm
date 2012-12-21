@@ -136,23 +136,20 @@ sub _unlock {
     1;
 }
 
-# rename (increase rotation suffix) and keep only n histories. note: failure in
-# rotating should not be fatal, we just warn and return.
-sub _rotate {
+# will return \@files. each entry is [filename without compress suffix,
+# rotate_suffix (for sorting), period (for sorting), compress suffix (for
+# renaming back)]
+sub _get_files {
     my ($self) = @_;
 
-    my $locked = $self->_lock;
-    # each entry is [filename without compress suffix, rotate_suffix (for
-    # sorting), period (for sorting), compress suffix (for renaming back)]
-    my @files;
-
     opendir my($dh), $self->{dir} or do {
-        warn "Can't opendir '$self->{dir}': $!, rotate skipped";
+        warn "Can't opendir '$self->{dir}': $!";
         return;
     };
-    while (my $e = readdir($dh)) {
-        my $compress_suffix = $1 if $e =~ s/(\.gz)\z//;
 
+    my @files;
+    while (my $e = readdir($dh)) {
+        my $cs = $1 if $e =~ s/(\.gz)\z//;
         next unless $e =~ /\A\Q$self->{prefix}\E
                            (?:\. (?<period>\d{4}(?:-\d\d(?:-\d\d)?)?) )?
                            \Q$self->{suffix}\E
@@ -160,22 +157,40 @@ sub _rotate {
                            \z
                           /x;
         push @files, [$e, $+{rotate_suffix} // 0, $+{period} // "",
-                      $compress_suffix // ""];
+                      $cs // ""];
     }
     closedir($dh);
 
+    [sort {$b->[1] <=> $a->[1] || $a->[2] cmp $b->[2]} @files];
+}
+
+# rename (increase rotation suffix) and keep only n histories. note: failure in
+# rotating should not be fatal, we just warn and return.
+sub _rotate {
+    my ($self) = @_;
+
+    my $locked = $self->_lock;
+    my $files  = $self->_get_files or goto EXIT;
+
+    # is there a compression process in progress? this is marked by the
+    # existence of <prefix>-compress.pid PID file.
+    if (-f "$self->{dir}/$self->{prefix}-compress.pid") {
+        warn "Compression is in progress, rotation is postponed";
+        goto EXIT;
+    }
+
     my $i;
     my $dir = $self->{dir};
-    for my $f (sort {$b->[1] <=> $a->[1] || $a->[2] cmp $b->[2]} @files) {
-        my ($orig, $rsuffix, $period, $cs) = @$f;
+    for my $f (@$files) {
+        my ($orig, $rs, $period, $cs) = @$f;
         $i++;
-        if ($i <= @files-$self->{histories}) {
+        if ($i <= @$files-$self->{histories}) {
             $log->trace("Deleting old rotated file $dir/$orig$cs ...");
             unlink "$dir/$orig$cs" or warn "Can't delete $dir/$orig$cs: $!";
             next;
         }
         my $new = $orig;
-        if ($rsuffix) {
+        if ($rs) {
             $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
         } elsif (!$period || delete($self->{_tmp_hack_give_suffix_to_fp})) {
             $new .= ".1";
@@ -188,6 +203,7 @@ sub _rotate {
         }
     }
 
+  EXIT:
     $self->_unlock if $locked;
 }
 
@@ -263,13 +279,57 @@ sub write {
 }
 
 sub compress {
+    require File::Which;
+    require Proc::PID::File;
+
     my ($self) = @_;
-    die "Not yet implemented";
+
+    my $cmd;
+    for (qw/pigz gzip/) {
+        if (File::Which::which($_)) {
+            $cmd = $_; last;
+        }
+    }
+    if (!$cmd) {
+        warn "No compressor program available, compress aborted";
+        return;
+    }
+
+    my $locked = $self->_lock;
+    my $files  = $self->_get_files or goto EXIT1;
+
+    my $pid = Proc::PID::File->new(
+        dir    => $self->{dir},
+        name   => "$self->{prefix}-compress",
+        verify => 1,
+    );
+    if ($pid->alive) {
+        warn "Another compression is in progress";
+        goto EXIT1;
+    }
+
+    my @tocompress;
+    my $dir = $self->{dir};
+    for my $f (@$files) {
+        my ($orig, $rs, $period, $cs) = @$f;
+        next unless $rs;
+        next if $cs;
+        push @tocompress, $orig;
+    }
+
+  EXIT1:
+    $self->_unlock if $locked;
+    if (@tocompress) {
+        system $cmd, "--force", (map {"$self->{dir}/$_"} @tocompress);
+    }
 }
 
 sub DESTROY {
     my ($self) = @_;
     $self->_unlock;
+
+    # Proc::PID::File's DESTROY seem to create an empty PID file, remove it.
+    unlink "$self->{dir}/$self->{prefix}-compress.pid";
 }
 
 1;
@@ -395,11 +455,23 @@ keep C<.1> file, and so on.
 
 =back
 
-=head2 $fwr->print($str)
+=head2 $fwr->write(@args)
+
+Write to file. Will automatically rotate if period changes or file size exceeds
+specified limit. When rotating, will only keep a specified number of histories
+and delete the older ones. Uses locking, so multiple writers do not clobber one
+another. Lock file is named C<< <prefix> >>C<.lck>.
 
 =head2 $fwr->compress
 
-Compress old rotated files.
+Compress old rotated files. Currently uses B<pigz> or B<gzip> program to do the
+compression. Extension given to compressed file is C<.gz>.
+
+Will not lock files, but will create C<< <prefix> >>C<-compress.pid> PID file to
+prevent multiple compression processes running and to signal to writer to
+postpone rotation.
+
+After compression is finished, will remove the PID file.
 
 
 =head1 SEE ALSO
