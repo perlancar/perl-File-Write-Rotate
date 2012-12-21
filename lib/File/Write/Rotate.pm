@@ -457,21 +457,28 @@ keep C<.1> file, and so on.
 
 =head2 $fwr->write(@args)
 
-Write to file. Will automatically rotate if period changes or file size exceeds
-specified limit. When rotating, will only keep a specified number of histories
-and delete the older ones. Uses locking, so multiple writers do not clobber one
-another. Lock file is named C<< <prefix> >>C<.lck>.
+Write to file. Will automatically rotate file if period changes or file size
+exceeds specified limit. When rotating, will only keep a specified number of
+histories and delete the older ones. Uses locking, so multiple writers do not
+clobber one another. Lock file is named C<< <prefix> >>C<.lck>. Will wait for up
+to 1 minute to acquire lock, will die if failed to acquire lock.
+
+Does not append newline so you'll have to do it yourself.
 
 =head2 $fwr->compress
 
 Compress old rotated files. Currently uses B<pigz> or B<gzip> program to do the
 compression. Extension given to compressed file is C<.gz>.
 
-Will not lock files, but will create C<< <prefix> >>C<-compress.pid> PID file to
-prevent multiple compression processes running and to signal to writer to
+Normally, should be done using a separate process so as to avoid blocking the
+writers.
+
+Will not lock writers, but will create C<< <prefix> >>C<-compress.pid> PID file
+to prevent multiple compression processes running and to signal the writers to
 postpone rotation.
 
-After compression is finished, will remove the PID file.
+After compression is finished, will remove the PID file, so rotation can be done
+again on the next C<write()> if necessary.
 
 
 =head1 SEE ALSO
