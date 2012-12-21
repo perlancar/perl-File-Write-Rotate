@@ -362,16 +362,9 @@ sub DESTROY {
 =head1 DESCRIPTION
 
 This module can be used to write to file, usually for logging, that can rotate
-itself. File will be opened in append mode. Locking will be done (but can be
-disabled) to avoid conflict when there are multiple writers. Rotation can be
-done by size (after a certain size is reached), by time (daily/monthly/yearly),
-or both.
-
-This code for this module is based on L<Log::Dispatch::FileRotate>. For the
-purpose of reducing startup overhead and dependencies, I simplify and strip a
-few things including: L<Log::Dispatch>-specific stuffs, the use of
-L<Date::Manip>, and some features that I do not need like date pattern. The
-result is a module that is less flexible, but it fits all my current needs.
+itself. File will be opened in append mode. Locking will be done to avoid
+conflict when there are multiple writers. Rotation can be done by size (after a
+certain size is reached), by time (daily/monthly/yearly), or both.
 
 I first wrote this module for logging script STDERR output to files (see
 L<Tie::Handle::FileRotate>).
@@ -483,12 +476,12 @@ again on the next C<write()> if necessary.
 
 =head1 SEE ALSO
 
-L<Log::Dispatch::FileRotate>, from which the code of this module is based on.
-Differences between File::Write::Rotate (FWR) and Log::Dispatch::FileRotate
-(LDFR) are as follows. Firstly, FWR is not part of L<Log::Dispatch> family. FWR
-does not use L<Date::Manip> (to be tinier) and does not support DatePattern;
-instead, FWR replaces it with a simple daily/monthly/yearly period. FWR supports
-compressing and rotating compressed old files.
+L<Log::Dispatch::FileRotate>, which inspires this module. Differences between
+File::Write::Rotate (FWR) and Log::Dispatch::FileRotate (LDFR) are as follows.
+Firstly, FWR is not part of the L<Log::Dispatch> family. FWR does not use
+L<Date::Manip> (to be tinier) and does not support DatePattern; instead, FWR
+replaces it with a simple daily/monthly/yearly period. FWR supports compressing
+and rotating compressed old files.
 
 L<Tie::Handle::FileRotate>, which uses this module.
 
