@@ -5,7 +5,6 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
-use Fcntl ':flock';
 use Time::HiRes 'time';
 
 # VERSION
@@ -77,63 +76,23 @@ sub lock_file_path {
     );
 }
 
-# locking is used to prevent multiple writer processes from clobbering one
-# another's write. here we (re)open the lock file (as well as creating it if it
-# does not already exist), flock it with LOCK_NB, trying several times up to a
-# minute if fails to get a lock, then die if still fails. i think this is the
-# best compromise compared to: 1) flock without LOCK_NB (blocks indefinitely,
-# potentially causing multiple processes to pile up); 2) buffering writes (only
-# delaying the disaster, buffered data will be lost anyway unless written to
-# another file); 3) ignoring lock (clobbering).
-
-# note: reopening also solves problem with shared lock between parent and forked
-# children (this is a note from Log::Dispatch::FileRotate).
-
-# note: ideally, lock should not be held for more than a fraction of a second.
-# that's why we lock after each single print and immediately unlock it again. we
-# also only lock when creating an empty compressed old file, we do not hold lock
-# while compressing.
-
-# the _lock and _unlock routines might be refactored into a module someday. i
-# like this better than File::Flock (which is rather heavy) and
-# File::Flock::Tiny (which does not have unlink-if-created-by-us feature).
-
-# return 1 if we lock, 0 if already locked, dies on error/failure to get lock
 sub _lock {
     my ($self) = @_;
 
-    # already locked
-    return 0 if $self->{_lfh};
-
-    my $lfp = $self->lock_file_path;
-    my $exists = (-f $lfp);
-    open $self->{_lfh}, ">>", $lfp or die "Can't open lock file '$lfp': $!";
-    my $tries = 0;
-    while (1) {
-        $tries++;
-        last if flock($self->{_lfh}, LOCK_EX | LOCK_NB);
-        $tries > 60 and die "Can't acquire lock on '$lfp' after 1 minute";
-        sleep 1;
+    if ($self->{_lock}) {
+        return $self->{_lock}->_lock;
+    } else {
+        require SHARYANTO::File::Flock;
+        $self->{_lock} = SHARYANTO::File::Flock->lock(
+            $self->lock_file_path, {unlink=>1});
+        return 1;
     }
-    $self->{_created_lock_file} = !$exists;
-    1;
 }
 
-# return 1 if we unlock, 0 if already unlocked
 sub _unlock {
     my ($self) = @_;
 
-    my $lfp = $self->lock_file_path;
-
-    return 0 unless $self->{_lfh};
-
-    # delete first to avoid race condition (i.e. we delete lock file created by
-    # other process)
-    unlink $lfp if delete($self->{_created_lock_file});
-
-    flock $self->{_lfh}, LOCK_UN;
-    close delete($self->{_lfh});
-    1;
+    $self->{_lock}->_unlock;
 }
 
 # will return \@files. each entry is [filename without compress suffix,

@@ -78,6 +78,8 @@ sub test_rotate {
 
         $fwr->_rotate;
 
+        undef $fwr;
+
         my @files;
         opendir $dh, ".";
         while (my $e = readdir($dh)) {
