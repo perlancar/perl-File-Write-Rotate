@@ -399,6 +399,11 @@ Maximum file size, in bytes, before rotation is triggered. The default is 10MB
 C<size> is provided, which means files will not be rotated for size (only for
 period).
 
+=item * period => STR
+
+Can be set to either C<daily>, C<monthly>, or C<yearly>. If set, will
+automatically rotate after period change. See C<prefix> for more details.
+
 =item * histories => INT (default: 10)
 
 Number of rotated files to keep. After the number of files exceeds this, the
