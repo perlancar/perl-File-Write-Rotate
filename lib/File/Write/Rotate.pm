@@ -92,7 +92,7 @@ sub _lock {
 sub _unlock {
     my ($self) = @_;
 
-    $self->{_lock}->_unlock;
+    $self->{_lock}->_unlock if $self->{_lock};
 }
 
 # will return \@files. each entry is [filename without compress suffix,
