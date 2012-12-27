@@ -30,7 +30,8 @@ sub new {
 
     $args{histories} //= 10;
 
-    bless \%args, $class;
+    my $self = bless \%args, $class;
+    $self;
 }
 
 # file path, without the rotate suffix
@@ -223,6 +224,7 @@ sub _rotate_and_open {
     # (re)open
     if ($do_open || $do_rotate) {
         open $self->{_fh}, ">>", $fp or die "Can't open '$fp': $!";
+        my $oldfh = select $self->{_fh}; $| = 1; select $oldfh; # set autoflush
         $self->{_fp} = $fp;
     }
 }
