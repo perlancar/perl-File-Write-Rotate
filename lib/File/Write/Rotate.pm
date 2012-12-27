@@ -3,7 +3,7 @@ package File::Write::Rotate;
 use 5.010;
 use strict;
 use warnings;
-use Log::Any '$log';
+#use Log::Any '$log';
 
 use Time::HiRes 'time';
 
@@ -145,7 +145,7 @@ sub _rotate {
         my ($orig, $rs, $period, $cs) = @$f;
         $i++;
         if ($i <= @$files-$self->{histories}) {
-            $log->trace("Deleting old rotated file $dir/$orig$cs ...");
+            #$log->trace("Deleting old rotated file $dir/$orig$cs ...");
             unlink "$dir/$orig$cs" or warn "Can't delete $dir/$orig$cs: $!";
             next;
         }
@@ -156,8 +156,8 @@ sub _rotate {
             $new .= ".1";
         }
         if ($new ne $orig) {
-            $log->trace(
-                "Renaming rotated file $dir/$orig$cs -> $dir/$new$cs ...");
+            #$log->trace(
+            #    "Renaming rotated file $dir/$orig$cs -> $dir/$new$cs ...");
             rename "$dir/$orig$cs", "$dir/$new$cs"
                 or warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
         }
