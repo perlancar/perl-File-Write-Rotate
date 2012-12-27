@@ -3,6 +3,7 @@ package File::Write::Rotate;
 use 5.010;
 use strict;
 use warnings;
+# we must not use Log::Any, looping if we are used as log output
 #use Log::Any '$log';
 
 use Time::HiRes 'time';

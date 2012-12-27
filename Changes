@@ -1,5 +1,11 @@
 Revision history for File-Write-Rotate
 
+0.07    2012-12-27 (SHARYANTO)
+
+        Avoid using Log::Any, because we are used as backend for
+        Log::Dispatch::FileWriteRotate (thus, a loop).
+
+
 0.06    2012-12-27 (SHARYANTO)
 
         Set autoflush (to pass Log-Any-App09 tests).
