@@ -1,5 +1,13 @@
 Revision history for File-Write-Rotate
 
+0.10    2012-12-28 (SHARYANTO)
+
+        [NEW FEATURES]
+
+        - Add buffering (attribute: buffer_size) to buffer messages during
+          temporary write() failure.
+
+
 0.09    2012-12-28 (SHARYANTO)
 
         Make rotate pass under taint-mode.
