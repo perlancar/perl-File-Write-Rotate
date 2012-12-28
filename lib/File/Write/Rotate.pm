@@ -39,14 +39,14 @@ sub new {
     $self;
 }
 
-sub buffer {
+sub buffer_size {
     my $self = shift;
     if (@_) {
-        my $old = $self->{buffer};
-        $self->{buffer} = $_[0];
+        my $old = $self->{buffer_size};
+        $self->{buffer_size} = $_[0];
         return $old;
     } else {
-        return $self->{buffer};
+        return $self->{buffer_size};
     }
 }
 

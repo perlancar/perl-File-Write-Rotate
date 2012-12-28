@@ -146,9 +146,12 @@ subtest "buffer (success)" => sub {
     is(~~read_file("a"), "[1][2][3][4]", "buffered is emptied");
 };
 
-subtest "buffer (failed, full)" => sub {
+subtest "buffer (failed, full), buffer_size attribute" => sub {
     delete_all_files();
-    my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", buffer_size=>2);
+    my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a");
+    $fwr->buffer_size(2);
+    is($fwr->buffer_size, 2, 'buffer_size()');
+
     local $fwr->{_hook_before_print} = sub { die };
 
     lives_ok  { $fwr->write("[1]") } "first message to buffer";
