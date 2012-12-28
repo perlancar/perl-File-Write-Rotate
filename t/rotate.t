@@ -15,7 +15,7 @@ my $dir = tempdir(CLEANUP=>1);
 $CWD = $dir;
 
 test_rotate(
-    # correctly rename, only keep n histories, doesn't touch other prefixes,
+    # correctly rename, only keep N histories, doesn't touch other prefixes,
     # handle compress suffix
     name   => "basic rotate",
     args   => [prefix=>"a", histories=>3],
