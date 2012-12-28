@@ -10,6 +10,7 @@ use File::Path qw(remove_tree);
 use File::Slurp;
 use File::Temp qw(tempdir);
 use File::Write::Rotate;
+use Taint::Runtime qw(untaint);
 
 my $dir = tempdir(CLEANUP=>1);
 $CWD = $dir;
@@ -46,6 +47,22 @@ test_rotate(
                          a.2012-11.log a.2012-12.log/],
 );
 
+{
+    use tainting;
+    test_rotate(
+        # test rename and unlink works under tainting
+        name   => "under tainting",
+        args   => [prefix=>"a", histories=>3],
+        files_before  => [qw/a a.1 a.2 a.3/],
+        before_rotate => sub {
+            write_file($_, "") for (qw/a a.1 a.2 a.3/);
+        },
+        files_after   => [qw/a.1 a.2 a.3/],
+        after_rotate  => sub {
+        },
+    );
+}
+
 DONE_TESTING:
 done_testing;
 if (Test::More->builder->is_passing) {
@@ -70,6 +87,7 @@ sub test_rotate {
         opendir $dh, ".";
         while (my $e = readdir($dh)) {
             next if $e eq '.' || $e eq '..';
+            untaint \$e;
             remove_tree($e);
         }
 

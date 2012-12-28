@@ -6,6 +6,7 @@ use warnings;
 # we must not use Log::Any, looping if we are used as log output
 #use Log::Any '$log';
 
+use Taint::Runtime qw(untaint is_tainted);
 use Time::HiRes 'time';
 
 # VERSION
@@ -146,6 +147,10 @@ sub _rotate {
     for my $f (@$files) {
         my ($orig, $rs, $period, $cs) = @$f;
         $i++;
+        #say "D: is_tainted \$dir? ".is_tainted($dir);
+        #say "D: is_tainted \$orig? ".is_tainted($orig);
+        #say "D: is_tainted \$cs? ".is_tainted($cs);
+        untaint \$orig;
         if ($i <= @$files-$self->{histories}) {
             say "D: Deleting old rotated file $dir/$orig$cs ..." if $Debug;
             unlink "$dir/$orig$cs" or warn "Can't delete $dir/$orig$cs: $!";
