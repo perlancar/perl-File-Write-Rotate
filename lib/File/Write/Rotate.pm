@@ -151,7 +151,9 @@ sub _rotate {
         #say "D: is_tainted \$dir? ".is_tainted($dir);
         #say "D: is_tainted \$orig? ".is_tainted($orig);
         #say "D: is_tainted \$cs? ".is_tainted($cs);
-        # TODO actually, we should taint near the source (get_files)
+
+        # TODO actually, it's more proper to taint near the source (in this
+        # case, _get_files)
         untaint \$orig;
 
         if ($i <= @$files-$self->{histories}) {
