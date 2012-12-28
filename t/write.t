@@ -109,12 +109,22 @@ subtest "two writers, one rotates" => sub {
     $fwr1->write("[1.1]");
     is(~~read_file("a"), "[1.1]");
     $fwr2->write("[2.1]");
-    is(~~read_file("a"), "[1.1][2.1]");
-    $fwr2->write("[2.2]");
-    is(~~read_file("a"), "[2.2]");
-    is(~~read_file("a.1"), "[1.1][2.1]");
+    is(~~read_file("a"), "[2.1]");
+    is(~~read_file("a.1"), "[1.1]");
     $fwr1->write("[1.2]");
-    is(~~read_file("a"), "[2.2][1.2]");
+    is(~~read_file("a"), "[2.1][1.2]");
+    is(~~read_file("a.1"), "[1.1]");
+};
+
+# if FWR only rotates after second write(), then there will be cases where the
+# file won't get rotated at all.
+subtest "rotate on first write()" => sub {
+    delete_all_files();
+    write_file("$dir/a", "123");
+    my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>3);
+    $fwr->write("[1]");
+    is(~~read_file("a"), "[1]");
+    is(~~read_file("a.1"), "123");
 };
 
 DONE_TESTING:

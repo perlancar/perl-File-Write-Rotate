@@ -168,6 +168,15 @@ sub _rotate {
     $self->_unlock if $locked;
 }
 
+sub _open {
+    my $self = shift;
+
+    my $fp = $self->file_path;
+    open $self->{_fh}, ">>", $fp or die "Can't open '$fp': $!";
+    my $oldfh = select $self->{_fh}; $| = 1; select $oldfh; # set autoflush
+    $self->{_fp} = $fp;
+}
+
 # (re)open file and optionally rotate if necessary
 sub _rotate_and_open {
     my ($self) = @_;
@@ -175,9 +184,10 @@ sub _rotate_and_open {
     my $fp = $self->file_path;
     my ($do_open, $do_rotate) = @_;
 
+    # stat the current file (not our handle _fp)
     my @st = stat($fp);
+    # file does not exist yet, create
     unless (-e _) {
-        # file does not exist yet, create
         $do_open++;
         goto DOIT;
     }
@@ -186,8 +196,7 @@ sub _rotate_and_open {
 
     # file is not opened yet, open
     unless ($self->{_fh}) {
-        $do_open++;
-        goto DOIT;
+        $self->_open;
     }
 
     # period has changed, rotate
@@ -218,17 +227,8 @@ sub _rotate_and_open {
     }
 
   DOIT:
-    # rotate
-    if ($do_rotate) {
-        $self->_rotate;
-    }
-
-    # (re)open
-    if ($do_open || $do_rotate) {
-        open $self->{_fh}, ">>", $fp or die "Can't open '$fp': $!";
-        my $oldfh = select $self->{_fh}; $| = 1; select $oldfh; # set autoflush
-        $self->{_fp} = $fp;
-    }
+    $self->_rotate if $do_rotate;
+    $self->_open   if $do_rotate || $do_open; # (re)open
 }
 
 sub write {
