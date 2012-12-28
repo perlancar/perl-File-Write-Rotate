@@ -36,6 +36,21 @@ subtest "rotate by size" => sub {
     is(~~read_file("a.1"), "[1]");
 };
 
+# just testing at some non-negligible size
+subtest "rotate size, 20k" => sub {
+    delete_all_files();
+    my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>20*1000);
+
+    my $msg = "x" x 100;
+    for (1..200) { $fwr->write($msg) }
+    is( (-s "a")  , 20000);
+    ok(!(-e "a.1"));
+
+    $fwr->write($msg);
+    is( (-s "a")  ,   100);
+    is( (-s "a.1"), 20000);
+};
+
 subtest "rotate by period, daily" => sub {
     delete_all_files();
     my $ph;
