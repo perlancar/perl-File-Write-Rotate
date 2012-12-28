@@ -532,6 +532,6 @@ L<Date::Manip> (to be tinier) and does not support DatePattern; instead, FWR
 replaces it with a simple daily/monthly/yearly period. FWR supports compressing
 and rotating compressed old files.
 
-L<Tie::Handle::FileRotate>, which uses this module.
+L<Tie::Handle::FileWriteRotate>, which uses this module.
 
 =cut
