@@ -9,6 +9,7 @@ use warnings;
 use Time::HiRes 'time';
 
 # VERSION
+our $Debug;
 
 sub new {
     my $class = shift;
@@ -146,7 +147,7 @@ sub _rotate {
         my ($orig, $rs, $period, $cs) = @$f;
         $i++;
         if ($i <= @$files-$self->{histories}) {
-            #$log->trace("Deleting old rotated file $dir/$orig$cs ...");
+            say "D: Deleting old rotated file $dir/$orig$cs ..." if $Debug;
             unlink "$dir/$orig$cs" or warn "Can't delete $dir/$orig$cs: $!";
             next;
         }
@@ -157,8 +158,7 @@ sub _rotate {
             $new .= ".1";
         }
         if ($new ne $orig) {
-            #$log->trace(
-            #    "Renaming rotated file $dir/$orig$cs -> $dir/$new$cs ...");
+            say "D: Renaming rotated file $dir/$orig$cs -> $dir/$new$cs ..." if $Debug;
             rename "$dir/$orig$cs", "$dir/$new$cs"
                 or warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
         }
@@ -203,6 +203,7 @@ sub _rotate_and_open {
         my $size  = $st[7];
         $inode    = $st[1];
         if ($size >= $self->{size}) {
+            say "D: Size of $self->{_fp} is $size, exceeds $self->{size}, rotating ..." if $Debug;
             $do_rotate++;
             $self->{_tmp_hack_give_suffix_to_fp} = 1;
             goto DOIT;
