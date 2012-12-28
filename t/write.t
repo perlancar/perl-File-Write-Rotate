@@ -3,7 +3,6 @@
 use 5.010;
 use strict;
 use warnings;
-use Test::More 0.98;
 
 use File::chdir;
 use File::Path qw(remove_tree);
@@ -11,6 +10,9 @@ use File::Slurp;
 use File::Temp qw(tempdir);
 use File::Write::Rotate;
 use Monkey::Patch::Action qw(patch_package);
+
+use Test::Exception;
+use Test::More 0.98;
 
 my $dir = tempdir(CLEANUP=>1);
 $CWD = $dir;
@@ -125,6 +127,33 @@ subtest "rotate on first write()" => sub {
     $fwr->write("[1]");
     is(~~read_file("a"), "[1]");
     is(~~read_file("a.1"), "123");
+};
+
+subtest "buffer (success)" => sub {
+    delete_all_files();
+    my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", buffer_size=>2);
+    $fwr->{_hook_before_print} = sub { die };
+
+    lives_ok { $fwr->write("[1]") } "first message to buffer";
+    lives_ok { $fwr->write("[2]") } "second message to buffer";
+
+    undef $fwr->{_hook_before_print};
+
+    $fwr->write("[3]");
+
+    is(~~read_file("a"), "[1][2][3]", "buffered messages gets logged");
+    $fwr->write("[4]");
+    is(~~read_file("a"), "[1][2][3][4]", "buffered is emptied");
+};
+
+subtest "buffer (failed, full)" => sub {
+    delete_all_files();
+    my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", buffer_size=>2);
+    local $fwr->{_hook_before_print} = sub { die };
+
+    lives_ok  { $fwr->write("[1]") } "first message to buffer";
+    lives_ok  { $fwr->write("[2]") } "second message to buffer";
+    throws_ok { $fwr->write("[3]") } qr/\Q[1][2][3]\E/, "buffer is full";
 };
 
 DONE_TESTING:
