@@ -358,11 +358,12 @@ sub DESTROY {
  use File::Write::Rotate;
 
  my $fwr = File::Write::Rotate->new(
-     dir       => '/var/log',    # required
-     prefix    => 'myapp',       # required
-     #suffix   => '.log',        # default is ''
-     size      => 25*1024*1024,  # default is 10MB, unless period is set
-     histories => 12,            # default is 10
+     dir          => '/var/log',    # required
+     prefix       => 'myapp',       # required
+     #suffix      => '.log',        # default is ''
+     size         => 25*1024*1024,  # default is 10MB, unless period is set
+     histories    => 12,            # default is 10
+     #buffer_size => 100,           # default is none
  );
 
  # write, will write to /var/log/myapp.log, automatically rotate old log files
