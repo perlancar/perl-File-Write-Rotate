@@ -391,7 +391,7 @@ conflict when there are multiple writers. Rotation can be done by size (after a
 certain size is reached), by time (daily/monthly/yearly), or both.
 
 I first wrote this module for logging script STDERR output to files (see
-L<Tie::Handle::FileRotate>).
+L<Tie::Handle::FileWriteRotate>).
 
 
 =head1 ATTRIBUTES
