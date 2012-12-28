@@ -1,5 +1,10 @@
 Revision history for File-Write-Rotate
 
+0.09    2012-12-28 (SHARYANTO)
+
+        Make rotate pass under taint-mode.
+
+
 0.08    2012-12-28 (SHARYANTO)
 
         [BUG FIXES]
