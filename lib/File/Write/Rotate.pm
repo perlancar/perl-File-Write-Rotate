@@ -289,7 +289,14 @@ sub write {
         } else {
             # buffer is already full, let's dump the buffered + current message
             # to the die message anyway.
-            die "Can't log: $err, log message(s)=".join("", @msg);
+            die join(
+                "",
+                "Can't log",
+                (@{$self->{_buffer}} ? " (buffer is full, ".
+                     scalar(@{$self->{_buffer}})." message(s))" : ""),
+                ": $err, log message(s)=",
+                @msg
+            );
         }
     }
 }
