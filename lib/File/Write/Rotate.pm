@@ -548,14 +548,36 @@ replaces it with a simple daily/monthly/yearly period.
 
 =item * And lastly, FWR supports compressing and rotating compressed old files.
 
-Using separate processes like Unix B<logrotate> utility means having to deal
+Using separate processes like the Unix B<logrotate> utility means having to deal
 with yet another race condition. FWR takes care of that for you (see the
 compress() method). You also have the option to do log compression in the same
 script/process if you want, which is convenient.
 
 =back
 
+There is no significant overhead difference between FWR and LDFR (FWR is
+slightly faster than LDFR on my testing).
+
 L<Tie::Handle::FileWriteRotate> and Log::Dispatch::FileWriteRotate, which use
 this module.
+
+
+=head1 FAQ
+
+=head2 Why use autorotating log?
+
+Mainly convenience and low maintenance. You no longer need a separate rotator
+like the Unix B<logrotate> utility (which when accidentally disabled or
+misconfigured will cause your logs to stop being rotated and grow indefinitely).
+
+=head2 What is the downside of using FWR (and LDFR)?
+
+Mainly performance overhead, as every write() involves locking to make it safe
+to use with multiple processes. Tested on my Core i5 3.1 GHz desktop, writing
+log lines in the size of ~ 200 bytes, raw writing to disk (SSD) has the speed of
+around 3.4mil/s, while using FWR it comes down to around 19.5k/s.
+
+However, this is not something you'll notice or need to worry about unless
+you're logging near that speed.
 
 =cut
