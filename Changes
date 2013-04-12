@@ -1,5 +1,10 @@
 Revision history for File-Write-Rotate
 
+0.13    2013-04-12 (SHARYANTO)
+
+        No functional changes. Add FAQ item on why use FWR and the downside.
+
+
 0.12    2013-04-12 (SHARYANTO)
 
         No functional changes. Update module name in POD and expand the
