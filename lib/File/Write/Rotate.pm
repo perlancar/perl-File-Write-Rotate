@@ -100,8 +100,7 @@ sub _lock {
         return $self->{_lock}->_lock;
     } else {
         require SHARYANTO::File::Flock;
-        $self->{_lock} = SHARYANTO::File::Flock->lock(
-            $self->lock_file_path, {unlink=>1});
+        $self->{_lock} = SHARYANTO::File::Flock->lock($self->lock_file_path);
         return 1;
     }
 }
