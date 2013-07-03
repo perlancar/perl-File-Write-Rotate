@@ -1,5 +1,11 @@
 Revision history for File-Write-Rotate
 
+0.14    2013-07-03 (SHARYANTO)
+
+        No functional changes. Force fixed SHARYANTO::File::Flock version
+        (0.49).
+
+
 0.13    2013-04-12 (SHARYANTO)
 
         No functional changes. Add FAQ item on why use FWR and the downside.
