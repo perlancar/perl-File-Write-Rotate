@@ -6,7 +6,7 @@ use warnings;
 
 use File::chdir;
 use File::Path qw(remove_tree);
-use File::Slurp;
+use File::Slurp::Tiny qw(read_file write_file);
 use File::Temp qw(tempdir);
 use File::Write::Rotate;
 use Monkey::Patch::Action qw(patch_package);
