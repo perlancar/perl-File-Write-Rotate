@@ -1,5 +1,12 @@
 Revision history for File-Write-Rotate
 
+0.15    2014-05-17 (SHARYANTO)
+
+        - No functional changes.
+
+        - Replace File::Slurp with File::Slurp::Tiny.
+
+
 0.14    2013-07-03 (SHARYANTO)
 
         - No functional changes. Force fixed SHARYANTO::File::Flock version
