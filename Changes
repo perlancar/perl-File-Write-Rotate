@@ -1,5 +1,11 @@
 Revision history for File-Write-Rotate
 
+0.16    2014-07-10 (SHARYANTO)
+
+        - Added support for 'binmode' (to set PerlIO layers, esp. encoding)
+          [thanks Norbert Buchmuller].
+
+
 0.15    2014-05-17 (SHARYANTO)
 
         - No functional changes.
