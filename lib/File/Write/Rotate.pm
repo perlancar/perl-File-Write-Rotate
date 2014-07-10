@@ -398,9 +398,10 @@ L<Tie::Handle::FileWriteRotate>).
 =head2 buffer_size => INT
 
 Get or set buffer size. If set to a value larger than 0, then when a write()
-failed, instead of dying, the message will be stored in an internal buffer
-first. When the number of buffer exceeds this size, then write() will die upon
-failure. Otherwise, every write() will try to flush the buffer.
+failed, instead of dying, the message will be stored in an internal buffer first
+(a regular Perl array). When the number of items in the buffer exceeds this
+size, then write() will die upon failure. Otherwise, every write() will try to
+flush the buffer.
 
 Can be used for example when a program runs as superuser/root then temporarily
 drops privilege to a normal user. During this period, logging can fail because
