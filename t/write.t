@@ -12,6 +12,7 @@ use File::Write::Rotate;
 use Monkey::Patch::Action qw(patch_package);
 
 use Test::Exception;
+use Test::Warnings qw(:no_end_test warnings);
 use Test::More 0.98;
 
 my $dir = tempdir(CLEANUP=>1);
@@ -24,6 +25,21 @@ subtest "basic" => sub {
     is(~~read_file("a"), "[1]");
     $fwr->write("[2]", "[3]");
     is(~~read_file("a"), "[1][2][3]");
+};
+
+subtest "binmode ':utf8'" => sub {
+    delete_all_files();
+    my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a",
+        binmode => ':utf8');
+    my $text = "\x{263a}";
+    utf8::upgrade($text);
+    my @warnings = warnings {
+        use warnings;
+        $fwr->write($text);
+    };
+    ok(!(grep { $_ =~ /wide character/i } @warnings),
+        "no 'Wide character in ...' warning");
+    is(~~read_file("a", binmode => ':utf8'), $text, "file contents");
 };
 
 subtest "rotate by size" => sub {

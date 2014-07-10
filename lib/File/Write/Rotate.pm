@@ -195,6 +195,10 @@ sub _open {
 
     my $fp = $self->file_path;
     open $self->{_fh}, ">>", $fp or die "Can't open '$fp': $!";
+    if (defined $self->{binmode}) {
+        binmode $self->{_fh}, $self->{binmode}
+            or die "Can't set PerlIO layer on '$fp': $!";
+    }
     my $oldfh = select $self->{_fh}; $| = 1; select $oldfh; # set autoflush
     $self->{_fp} = $fp;
 }
