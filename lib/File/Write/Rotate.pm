@@ -527,6 +527,25 @@ After compression is finished, will remove the PID file, so rotation can be done
 again on the next C<write()> if necessary.
 
 
+=head1 FAQ
+
+=head2 Why use autorotating log?
+
+Mainly convenience and low maintenance. You no longer need a separate rotator
+like the Unix B<logrotate> utility (which when accidentally disabled or
+misconfigured will cause your logs to stop being rotated and grow indefinitely).
+
+=head2 What is the downside of using FWR (and LDFR)?
+
+Mainly performance overhead, as every write() involves locking to make it safe
+to use with multiple processes. Tested on my Core i5 3.1 GHz desktop, writing
+log lines in the size of ~ 200 bytes, raw writing to disk (SSD) has the speed of
+around 3.4mil/s, while using FWR it comes down to around 19.5k/s.
+
+However, this is not something you'll notice or need to worry about unless
+you're logging near that speed.
+
+
 =head1 SEE ALSO
 
 L<Log::Dispatch::FileRotate>, which inspires this module. Differences between
@@ -564,24 +583,5 @@ slightly faster than LDFR on my testing).
 
 L<Tie::Handle::FileWriteRotate> and Log::Dispatch::FileWriteRotate, which use
 this module.
-
-
-=head1 FAQ
-
-=head2 Why use autorotating log?
-
-Mainly convenience and low maintenance. You no longer need a separate rotator
-like the Unix B<logrotate> utility (which when accidentally disabled or
-misconfigured will cause your logs to stop being rotated and grow indefinitely).
-
-=head2 What is the downside of using FWR (and LDFR)?
-
-Mainly performance overhead, as every write() involves locking to make it safe
-to use with multiple processes. Tested on my Core i5 3.1 GHz desktop, writing
-log lines in the size of ~ 200 bytes, raw writing to disk (SSD) has the speed of
-around 3.4mil/s, while using FWR it comes down to around 19.5k/s.
-
-However, this is not something you'll notice or need to worry about unless
-you're logging near that speed.
 
 =cut
