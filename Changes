@@ -1,5 +1,10 @@
 Revision history for File-Write-Rotate
 
+0.17    2014-07-10 (SHARYANTO)
+
+        - Fix dep version (Test::Warnings 0.014, not 0.14).
+
+
 0.16    2014-07-10 (SHARYANTO)
 
         - Added support for 'binmode' (to set PerlIO layers, esp. encoding)
