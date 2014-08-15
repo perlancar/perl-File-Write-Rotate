@@ -53,18 +53,18 @@ subtest "rotate by size" => sub {
 };
 
 # just testing at some non-negligible size
-subtest "rotate size, 20k" => sub {
+subtest "rotate by size = 20Kb" => sub {
     delete_all_files();
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>20*1000);
-
     my $msg = "x" x 100;
     for (1..200) { $fwr->write($msg) }
-    is( (-s "a")  , 20000);
-    ok(!(-e "a.1"));
-
+    is( (-s 'a')  , 20000, 'first file exists and has 20Kb so far');
+    is( (-e 'a.1'), undef, 'rotate files does not exists yet' );
+    note('printing one more message to force rotation bondaries');
     $fwr->write($msg);
-    is( (-s "a")  ,   100);
-    is( (-s "a.1"), 20000);
+    is( (-s 'a')  ,   100, 'new file exists and has 100 bytes');
+    is( (-s 'a.1'), 20000, 'rotate file exists and has 20Kb');
+	test_gzip($fwr, ['a.1']);
 };
 
 subtest "rotate by period, daily" => sub {
@@ -79,6 +79,7 @@ subtest "rotate by period, daily" => sub {
     $ph = set_time_to(1356090474 + 86400); # 2012-12-22
     $fwr->write("[4]");
     is(~~read_file("a.2012-12-22"), "[4]", 'got expected content in the file');
+	test_gzip($fwr, ['a.2012-12-21']);
 };
 
 subtest "rotate by period, monthly" => sub {
@@ -95,6 +96,7 @@ subtest "rotate by period, monthly" => sub {
     $ph = set_time_to(1356090474 + 31*86400); # 2013-01-21
     $fwr->write("[4]");
     is(~~read_file("a.2013-01"), "[4]");
+	test_gzip($fwr, ['a.2012-12']);
 };
 
 subtest "rotate by period, yearly" => sub {
@@ -111,6 +113,7 @@ subtest "rotate by period, yearly" => sub {
     $ph = set_time_to(1356090474 + 31*86400); # 2013-01-21
     $fwr->write("[4]");
     is(~~read_file("a.2013"), "[4]");
+	test_gzip($fwr, ['a.2012']);
 };
 
 subtest "rotate by period + size, suffix" => sub {
@@ -132,6 +135,8 @@ subtest "rotate by period + size, suffix" => sub {
     $ph = set_time_to(1356090474 + 86400); # 2012-12-22
     $fwr->write("[5]");
     is(~~read_file("a.2012-12-22.log"), "[5]");
+	$DB::single = 1;
+	test_gzip($fwr, ['a.2012-12-21.log', 'a.2012-12-21.log.1', 'a.2012-12-21.log.2']);
 };
 
 subtest "two writers, one rotates" => sub {
@@ -146,6 +151,7 @@ subtest "two writers, one rotates" => sub {
     $fwr1->write("[1.2]");
     is(~~read_file("a"), "[2.1][1.2]");
     is(~~read_file("a.1"), "[1.1]");
+	test_gzip($fwr1, ['a.1']);
 };
 
 # if FWR only rotates after second write(), then there will be cases where the
@@ -157,6 +163,7 @@ subtest "rotate on first write()" => sub {
     $fwr->write("[1]");
     is(~~read_file("a"), "[1]");
     is(~~read_file("a.1"), "123");
+	test_gzip($fwr, ['a.1']);
 };
 
 subtest "buffer (success)" => sub {
@@ -189,8 +196,8 @@ subtest "buffer (failed, full), buffer_size attribute" => sub {
     throws_ok { $fwr->write("[3]") } qr/\Q[1][2][3]\E/, "buffer is full";
 };
 
-DONE_TESTING:
 done_testing;
+
 if (Test::More->builder->is_passing) {
     $CWD = "/";
 } else {
@@ -213,4 +220,51 @@ sub set_time_to {
     $Time = shift;
     my $ph = patch_package("File::Write::Rotate", 'time', 'replace', \&_time);
     return $ph;
+}
+
+sub test_gzip {
+
+	my $fwr = shift;
+	my $files_ref = shift;
+	my @sizes;
+	
+	foreach my $filename(@{$files_ref}) {
+	
+	    push(@sizes, (-s $filename));
+		
+	}
+
+	my $ret = $fwr->compress;
+
+	ok($ret, 'compress method returns true');
+
+	SKIP: {
+
+        skip 'compress method did not return true', (2 * scalar(@{$files_ref})) unless ($ret);
+
+		my $counter = 0;
+
+	    foreach my $filename(@{$files_ref}) {
+		
+	        my $orig_size = $sizes[$counter];
+			$counter++;
+    	    my $new_file = $filename . '.gz';
+            # sane value
+	        my $comp_size = 0;
+	        ok( $comp_size = (-s $new_file), "rotated file $filename was compressed");
+            
+			if (defined($comp_size)) {
+
+	            cmp_ok($comp_size, '<', $orig_size, 'compressed file size is smaller than before compression');
+
+			} else {
+
+                fail("there is no compressed $filename, cannot compare sizes");
+
+			}
+		
+	    }
+		
+	}
+
 }

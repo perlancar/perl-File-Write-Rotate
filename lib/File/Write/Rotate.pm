@@ -363,17 +363,20 @@ sub compress {
             if (@tocompress) {
 
                 my $dir = $self->{dir};
+
                 foreach my $file (@tocompress) {
 
                     gzip( $file => File::Spec->catfile( $dir, "$file.gz" ) )
                       or warn "gzip failed: $GzipError\n";
 
                 }
+        
+		        $done_compression = 1;
+
             }
 
         }
 
-        $done_compression = 1;
 
     }
 
@@ -546,11 +549,8 @@ Does not append newline so you'll have to do it yourself.
 
 =head2 $fwr->compress
 
-Compress old rotated files. Currently uses B<pigz> or B<gzip> program to do the
+Compress old rotated files. Currently uses L<IO::Compress::Gzip> to do the
 compression. Extension given to compressed file is C<.gz>.
-
-Normally, should be done using a separate process so as to avoid blocking the
-writers.
 
 Will not lock writers, but will create C<< <prefix> >>C<-compress.pid> PID file
 to prevent multiple compression processes running and to signal the writers to
@@ -558,7 +558,6 @@ postpone rotation.
 
 After compression is finished, will remove the PID file, so rotation can be done
 again on the next C<write()> if necessary.
-
 
 =head1 FAQ
 
@@ -582,7 +581,6 @@ you're logging near that speed.
 =head1 TODO
 
 Perhaps an option to disable locking.
-
 
 =head1 SEE ALSO
 
