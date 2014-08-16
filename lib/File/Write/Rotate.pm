@@ -121,7 +121,7 @@ sub _get_files {
 
     my @files;
     while ( my $e = readdir($dh) ) {
-        my $cs = $1 if $e =~ s/(\.gz)\z//;
+        my $cs = $1 if $e =~ s/(\.gz)\z//; # compress suffix
         next unless $e =~ /\A\Q$self->{prefix}\E
                            (?:\. (?<period>\d{4}(?:-\d\d(?:-\d\d)?)?) )?
                            \Q$self->{suffix}\E
@@ -347,10 +347,10 @@ sub compress {
         } else {
             my @tocompress;
             for my $file_ref ( @{$files_ref} ) {
-                # orig, rs, period, cs
-                next unless $file_ref->[1];
-                next if $file_ref->[3];
-                push @tocompress, $file_ref->[0];
+                my ($orig, $rs, $period, $cs) = @{ $file_ref };
+                next unless $rs;
+                next if $cs;
+                push @tocompress, $orig;
             }
 
             if (@tocompress) {
