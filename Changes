@@ -1,5 +1,20 @@
 Revision history for File-Write-Rotate
 
+0.18    2014-08-16 (SHARYANTO) - Happy 19th CPAN Day!
+
+        [ENHANCEMENTS]
+
+        - Replace the use of 'gzip' binary with IO::Compress::Gzip, to allow
+          this module to run in OS's other than Unix-like ones [Alceu Rodrigues
+          de Freitas Junior].
+
+        - Add tests for compression.
+
+        [BUG FIXES]
+
+        - Old period logs were never compressed.
+
+
 0.17    2014-07-10 (SHARYANTO)
 
         - Fix dep version (Test::Warnings 0.014, not 0.14).
