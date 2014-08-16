@@ -81,7 +81,12 @@ sub file_path {
         $period = "";
     }
 
-    join( '', $self->{dir}, '/', $self->{prefix}, $period, $self->{suffix}, );
+    my $path = join( '', $self->{dir}, '/', $self->{prefix}, $period, $self->{suffix}, );
+    if (wantarray) {
+        return ($path, $period);
+    } else {
+        return $path;
+    }
 }
 
 sub lock_file_path {
@@ -157,16 +162,16 @@ sub _rotate {
         my ( $orig, $rs, $period, $cs ) = @$f;
         $i++;
 
-        #say "D: is_tainted \$dir? ".is_tainted($dir);
-        #say "D: is_tainted \$orig? ".is_tainted($orig);
-        #say "D: is_tainted \$cs? ".is_tainted($cs);
+        #say "DEBUG: is_tainted \$dir? ".is_tainted($dir);
+        #say "DEBUG: is_tainted \$orig? ".is_tainted($orig);
+        #say "DEBUG: is_tainted \$cs? ".is_tainted($cs);
 
         # TODO actually, it's more proper to taint near the source (in this
         # case, _get_files)
         untaint \$orig;
 
         if ( $i <= @$files - $self->{histories} ) {
-            say "D: Deleting old rotated file $dir/$orig$cs ..." if $Debug;
+            say "DEBUG: Deleting old rotated file $dir/$orig$cs ..." if $Debug;
             unlink "$dir/$orig$cs" or warn "Can't delete $dir/$orig$cs: $!";
             next;
         }
@@ -178,7 +183,7 @@ sub _rotate {
             $new .= ".1";
         }
         if ( $new ne $orig ) {
-            say "D: Renaming rotated file $dir/$orig$cs -> $dir/$new$cs ..."
+            say "DEBUG: Renaming rotated file $dir/$orig$cs -> $dir/$new$cs ..."
               if $Debug;
             rename "$dir/$orig$cs", "$dir/$new$cs"
               or warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
@@ -192,7 +197,7 @@ sub _rotate {
 sub _open {
     my $self = shift;
 
-    my $fp = $self->file_path;
+    my ($fp, $period) = $self->file_path;
     open $self->{_fh}, ">>", $fp or die "Can't open '$fp': $!";
     if ( defined $self->{binmode} ) {
         binmode $self->{_fh}, $self->{binmode}
@@ -202,6 +207,7 @@ sub _open {
     $| = 1;
     select $oldfh;    # set autoflush
     $self->{_fp} = $fp;
+    $self->{_cur_period} = $period;
 }
 
 # (re)open file and optionally rotate if necessary
@@ -239,9 +245,8 @@ sub _rotate_and_open {
             $inode = $st[1];
 
             if ( $size >= $self->{size} ) {
-                say
-"D: Size of $self->{_fp} is $size, exceeds $self->{size}, rotating ..."
-                  if $Debug;
+                say "DEBUG: Size of $self->{_fp} is $size, exceeds $self->{size}, rotating ..."
+                    if $Debug;
                 $do_rotate++;
                 $self->{_tmp_hack_give_suffix_to_fp} = 1;
                 last CASE;
@@ -346,10 +351,13 @@ sub compress {
             warn "Another compression is in progress";
         } else {
             my @tocompress;
+            #use DD; dd $self;
             for my $file_ref ( @{$files_ref} ) {
                 my ($orig, $rs, $period, $cs) = @{ $file_ref };
-                next unless $rs;
-                next if $cs;
+                #say "D:compress: orig=<$orig> rs=<$rs> period=<$period> cs=<$cs>";
+                next if $cs; # already compressed
+                next if !$self->{period} && !$rs; # not old log
+                next if  $self->{period} && $period eq $self->{_cur_period}; # not old log
                 push @tocompress, $orig;
             }
 
@@ -357,7 +365,7 @@ sub compress {
                 my $dir = $self->{dir};
                 foreach my $file (@tocompress) {
                     gzip( $file => File::Spec->catfile( $dir, "$file.gz" ) )
-                      or warn "gzip failed: $GzipError\n";
+                        or warn "gzip failed: $GzipError\n";
                 }
                 $done_compression = 1;
             }
