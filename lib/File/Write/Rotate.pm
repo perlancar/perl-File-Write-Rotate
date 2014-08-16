@@ -327,7 +327,6 @@ sub write {
 }
 
 sub compress {
-
     my ($self) = shift;
 
     require Proc::PID::File;
@@ -337,7 +336,6 @@ sub compress {
     my $done_compression = 0;
 
     if ( @{$files_ref} ) {
-
         my $pid = Proc::PID::File->new(
             dir    => $self->{dir},
             name   => "$self->{prefix}-compress",
@@ -345,15 +343,10 @@ sub compress {
         );
 
         if ( $pid->alive ) {
-
             warn "Another compression is in progress";
-
-        }
-        else {
-
+        } else {
             my @tocompress;
             for my $file_ref ( @{$files_ref} ) {
-
                 # orig, rs, period, cs
                 next unless $file_ref->[1];
                 next if $file_ref->[3];
@@ -361,23 +354,14 @@ sub compress {
             }
 
             if (@tocompress) {
-
                 my $dir = $self->{dir};
-
                 foreach my $file (@tocompress) {
-
                     gzip( $file => File::Spec->catfile( $dir, "$file.gz" ) )
                       or warn "gzip failed: $GzipError\n";
-
                 }
-        
-		        $done_compression = 1;
-
+                $done_compression = 1;
             }
-
         }
-
-
     }
 
     $self->_unlock if $locked;
