@@ -21,6 +21,12 @@ sub new {
 
     defined( $args{dir} )    or die "Please specify dir";
     defined( $args{prefix} ) or die "Please specify prefix";
+	
+	if ( ( exists( $args{open_call} ) ) and ( defined ($args{open_call} ) ) ) {
+
+        die 'callback attribute must be a valid sub reference' unless ( ref( $args{open_call} ) eq 'CODE' );
+
+	}
     $args{suffix} //= "";
 
     $args{size} //= 0;
@@ -40,6 +46,18 @@ sub new {
 
     my $self = bless \%args, $class;
     $self;
+}
+
+sub exec_callback {
+
+	my $self = shift;
+
+	if ( ( ref($self->{open_call} ) eq 'CODE' ) ) {
+
+        $self->{open_call}->($self, @_);
+
+	}
+
 }
 
 sub buffer_size {
@@ -147,50 +165,62 @@ sub _rotate {
     my ($self) = @_;
 
     my $locked = $self->_lock;
-    my $files = $self->_get_files or goto EXIT;
+    my $files = $self->_get_files;
 
-    # is there a compression process in progress? this is marked by the
-    # existence of <prefix>-compress.pid PID file.
-    if ( -f "$self->{dir}/$self->{prefix}-compress.pid" ) {
-        warn "Compression is in progress, rotation is postponed";
-        goto EXIT;
-    }
+	CASE: {
 
-    my $i;
-    my $dir = $self->{dir};
-    for my $f (@$files) {
-        my ( $orig, $rs, $period, $cs ) = @$f;
-        $i++;
+		unless($files) {
 
-        #say "DEBUG: is_tainted \$dir? ".is_tainted($dir);
-        #say "DEBUG: is_tainted \$orig? ".is_tainted($orig);
-        #say "DEBUG: is_tainted \$cs? ".is_tainted($cs);
+			last CASE;
 
-        # TODO actually, it's more proper to taint near the source (in this
-        # case, _get_files)
-        untaint \$orig;
+		}
 
-        if ( $i <= @$files - $self->{histories} ) {
-            say "DEBUG: Deleting old rotated file $dir/$orig$cs ..." if $Debug;
-            unlink "$dir/$orig$cs" or warn "Can't delete $dir/$orig$cs: $!";
-            next;
-        }
-        my $new = $orig;
-        if ($rs) {
-            $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
-        }
-        elsif ( !$period || delete( $self->{_tmp_hack_give_suffix_to_fp} ) ) {
-            $new .= ".1";
-        }
-        if ( $new ne $orig ) {
-            say "DEBUG: Renaming rotated file $dir/$orig$cs -> $dir/$new$cs ..."
-              if $Debug;
-            rename "$dir/$orig$cs", "$dir/$new$cs"
-              or warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
-        }
-    }
+        # is there a compression process in progress? this is marked by the
+        # existence of <prefix>-compress.pid PID file.
+        if ( -f "$self->{dir}/$self->{prefix}-compress.pid" ) {
+            warn "Compression is in progress, rotation is postponed";
+            last CASE;
+        } else {
 
-  EXIT:
+            my $i;
+            my $dir = $self->{dir};
+            for my $f (@$files) {
+                my ( $orig, $rs, $period, $cs ) = @$f;
+                $i++;
+
+                #say "DEBUG: is_tainted \$dir? ".is_tainted($dir);
+                #say "DEBUG: is_tainted \$orig? ".is_tainted($orig);
+                #say "DEBUG: is_tainted \$cs? ".is_tainted($cs);
+
+                # TODO actually, it's more proper to taint near the source (in this
+                # case, _get_files)
+                untaint \$orig;
+
+                if ( $i <= ( @{$files} - $self->{histories} ) ) {
+                    say "DEBUG: Deleting old rotated file $dir/$orig$cs ..." if $Debug;
+                    unlink "$dir/$orig$cs" or warn "Can't delete $dir/$orig$cs: $!";
+                    next;
+                }
+                my $new = $orig;
+                if ($rs) {
+                    $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
+                } elsif ( !$period || delete( $self->{_tmp_hack_give_suffix_to_fp} ) ) {
+                    $new .= ".1";
+                }
+                if ( $new ne $orig ) {
+                    say "DEBUG: Renaming rotated file $dir/$orig$cs -> $dir/$new$cs ..."
+                        if $Debug;
+                    rename "$dir/$orig$cs", "$dir/$new$cs"
+                        or warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
+
+                }
+				
+			}
+
+		}
+
+	}
+
     $self->_unlock if $locked;
 }
 
@@ -208,6 +238,7 @@ sub _open {
     select $oldfh;    # set autoflush
     $self->{_fp} = $fp;
     $self->{_cur_period} = $period;
+    $self->exec_callback;
 }
 
 # (re)open file and optionally rotate if necessary
@@ -277,6 +308,14 @@ sub _rotate_and_open {
 
 }
 
+sub d_write {
+
+	my $self = shift;
+	my $msg_ref = shift;
+	print {$self->{_fh}} @{$msg_ref};
+
+}
+
 sub write {
     my $self = shift;
 
@@ -289,6 +328,7 @@ sub write {
     my @msg = ( map( {@$_} @{ $self->{_buffer} } ), @_ );
 
     eval {
+
         my $locked = $self->_lock;
 
         $self->_rotate_and_open;
@@ -296,13 +336,12 @@ sub write {
         # for testing only
         $self->{_hook_before_print}->() if $self->{_hook_before_print};
 
-        # syntax limitation? can't do print $self->{_fh} ... directly
-        my $fh = $self->{_fh};
-        print $fh @msg;
+		$self->d_write(\@msg);
         $self->{_buffer} = [];
 
         $self->_unlock if $locked;
     };
+
     my $err = $@;
 
     if ($err) {
