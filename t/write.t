@@ -45,6 +45,7 @@ subtest "binmode ':utf8'" => sub {
 subtest "rotate by size" => sub {
     delete_all_files();
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>3);
+    is(($fwr->file_path())[1], "", "period");
     $fwr->write("[1]");
     is(~~read_file("a"), "[1]");
     $fwr->write("[2]", "[3]");
@@ -72,6 +73,7 @@ subtest "rotate by period, daily" => sub {
     my $ph;
     $ph = set_time_to(1356090474); # 2012-12-21
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", period=>"daily");
+    is(($fwr->file_path())[1], "2012-12-21", "period");
     $fwr->write("[1]");
     is(~~read_file("a.2012-12-21"), "[1]", 'got expected content in the file (1)');
     $fwr->write("[2]", "[3]");
@@ -89,6 +91,7 @@ subtest "rotate by period, monthly" => sub {
     $ph = set_time_to(1356090474); # 2012-12-21
     my $fwr = File::Write::Rotate->new(dir=>$dir,
                                        prefix=>"a", period=>"monthly");
+    is(($fwr->file_path())[1], "2012-12", "period");
     $fwr->write("[1]");
     is(~~read_file("a.2012-12"), "[1]");
     $fwr->write("[2]", "[3]");
@@ -106,6 +109,7 @@ subtest "rotate by period, yearly" => sub {
     $ph = set_time_to(1356090474); # 2012-12-21
     my $fwr = File::Write::Rotate->new(dir=>$dir,
                                        prefix=>"a", period=>"year");
+    is(($fwr->file_path())[1], "2012", "period");
     $fwr->write("[1]");
     is(~~read_file("a.2012"), "[1]");
     $fwr->write("[2]", "[3]");
@@ -123,6 +127,7 @@ subtest "rotate by period + size, suffix" => sub {
     $ph = set_time_to(1356090474); # 2012-12-21
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", suffix=>".log",
                                        size=>3, period=>"daily");
+    is(($fwr->file_path())[1], "2012-12-21", "period");
     $fwr->write("[1]");
     is(~~read_file("a.2012-12-21.log"), "[1]");
     $fwr->write("[2]", "[3]");

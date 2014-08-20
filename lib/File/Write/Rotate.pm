@@ -68,20 +68,26 @@ sub file_path {
     my $period;
     if ( $self->{period} ) {
         if ( $self->{period} =~ /year/i ) {
-            $period = sprintf( ".%04d", $lt[5] );
+            $period = sprintf( "%04d", $lt[5] );
         }
         elsif ( $self->{period} =~ /month/i ) {
-            $period = sprintf( ".%04d-%02d", $lt[5], $lt[4] );
+            $period = sprintf( "%04d-%02d", $lt[5], $lt[4] );
         }
         elsif ( $self->{period} =~ /day|daily/i ) {
-            $period = sprintf( ".%04d-%02d-%02d", $lt[5], $lt[4], $lt[3] );
+            $period = sprintf( "%04d-%02d-%02d", $lt[5], $lt[4], $lt[3] );
         }
     }
     else {
         $period = "";
     }
 
-    my $path = join( '', $self->{dir}, '/', $self->{prefix}, $period, $self->{suffix}, );
+    my $path = join(
+        '',
+        $self->{dir}, '/',
+        $self->{prefix},
+        length($period) ? ".$period" : "",
+        $self->{suffix},
+    );
     if (wantarray) {
         return ($path, $period);
     } else {
