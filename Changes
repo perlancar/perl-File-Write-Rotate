@@ -1,5 +1,11 @@
 Revision history for File-Write-Rotate
 
+0.19    2014-08-20 (SHARYANTO)
+
+        - Fix bug in file_path() which caused current period log file to be
+          compressed [problem reported by Alceu Rodrigues de Freitas Junior].
+
+
 0.18    2014-08-16 (SHARYANTO) - Happy 19th CPAN Day!
 
         [ENHANCEMENTS]
