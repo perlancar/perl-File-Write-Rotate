@@ -15,6 +15,8 @@ use Test::Exception;
 use Test::Warnings qw(:no_end_test warnings);
 use Test::More 0.98;
 
+$ENV{TZ} = "UTC";
+
 my $dir = tempdir(CLEANUP=>1);
 $CWD = $dir;
 
@@ -71,14 +73,14 @@ subtest "rotate by size = 20Kb" => sub {
 subtest "rotate by period, daily" => sub {
     delete_all_files();
     my $ph;
-    $ph = set_time_to(1356090474); # 2012-12-21
+    $ph = set_time_to(1356090474); # 2012-12-21 @UTC
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", period=>"daily");
     is(($fwr->file_path())[1], "2012-12-21", "period");
     $fwr->write("[1]");
     is(~~read_file("a.2012-12-21"), "[1]", 'got expected content in the file (1)');
     $fwr->write("[2]", "[3]");
     is(~~read_file("a.2012-12-21"), "[1][2][3]", 'got expected content in the file (2)');
-    $ph = set_time_to(1356090474 + 86400); # 2012-12-22
+    $ph = set_time_to(1356090474 + 86400); # 2012-12-22 @UTC
     $fwr->write("[4]");
     is(~~read_file("a.2012-12-22"), "[4]", 'got expected content in the file (3)');
     #list_files();
@@ -88,7 +90,7 @@ subtest "rotate by period, daily" => sub {
 subtest "rotate by period, monthly" => sub {
     delete_all_files();
     my $ph;
-    $ph = set_time_to(1356090474); # 2012-12-21
+    $ph = set_time_to(1356090474); # 2012-12-21 @UTC
     my $fwr = File::Write::Rotate->new(dir=>$dir,
                                        prefix=>"a", period=>"monthly");
     is(($fwr->file_path())[1], "2012-12", "period");
@@ -97,7 +99,7 @@ subtest "rotate by period, monthly" => sub {
     $fwr->write("[2]", "[3]");
     is(~~read_file("a.2012-12"), "[1][2][3]");
 
-    $ph = set_time_to(1356090474 + 31*86400); # 2013-01-21
+    $ph = set_time_to(1356090474 + 31*86400); # 2013-01-21 @UTC
     $fwr->write("[4]");
     is(~~read_file("a.2013-01"), "[4]");
     test_gzip($fwr, ['a.2012-12']);
@@ -106,7 +108,7 @@ subtest "rotate by period, monthly" => sub {
 subtest "rotate by period, yearly" => sub {
     delete_all_files();
     my $ph;
-    $ph = set_time_to(1356090474); # 2012-12-21
+    $ph = set_time_to(1356090474); # 2012-12-21 @UTC
     my $fwr = File::Write::Rotate->new(dir=>$dir,
                                        prefix=>"a", period=>"year");
     is(($fwr->file_path())[1], "2012", "period");
@@ -115,7 +117,7 @@ subtest "rotate by period, yearly" => sub {
     $fwr->write("[2]", "[3]");
     is(~~read_file("a.2012"), "[1][2][3]");
 
-    $ph = set_time_to(1356090474 + 31*86400); # 2013-01-21
+    $ph = set_time_to(1356090474 + 31*86400); # 2013-01-21 @UTC
     $fwr->write("[4]");
     is(~~read_file("a.2013"), "[4]");
     test_gzip($fwr, ['a.2012']);
@@ -124,7 +126,7 @@ subtest "rotate by period, yearly" => sub {
 subtest "rotate by period + size, suffix" => sub {
     delete_all_files();
     my $ph;
-    $ph = set_time_to(1356090474); # 2012-12-21
+    $ph = set_time_to(1356090474); # 2012-12-21 @UTC
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", suffix=>".log",
                                        size=>3, period=>"daily");
     is(($fwr->file_path())[1], "2012-12-21", "period");
@@ -138,7 +140,7 @@ subtest "rotate by period + size, suffix" => sub {
     is(~~read_file("a.2012-12-21.log.1"), "[2][3]");
     is(~~read_file("a.2012-12-21.log.2"), "[1]");
 
-    $ph = set_time_to(1356090474 + 86400); # 2012-12-22
+    $ph = set_time_to(1356090474 + 86400); # 2012-12-22 @UTC
     $fwr->write("[5]");
     is(~~read_file("a.2012-12-22.log"), "[5]");
     test_gzip($fwr, ['a.2012-12-21.log', 'a.2012-12-21.log.1', 'a.2012-12-21.log.2']);
