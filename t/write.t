@@ -14,7 +14,6 @@ use Monkey::Patch::Action qw(patch_package);
 use Test::Exception;
 use Test::Warnings qw(:no_end_test warnings);
 use Test::More 0.98;
-use Test::Output;
 
 my $dir = tempdir(CLEANUP=>1);
 $CWD = $dir;
@@ -43,14 +42,6 @@ subtest "binmode ':utf8'" => sub {
     is(~~read_file("a", binmode => ':utf8'), $text, "file contents");
 };
 
-subtest 'bad callback' => sub {
-
-    delete_all_files();
-    my $fwr;
-	dies_ok { $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>20*1000, callback => 'wrong parameter') } 'callback parameter only accepts code references';
-
-};
-
 subtest "rotate by size" => sub {
     delete_all_files();
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>3);
@@ -64,44 +55,16 @@ subtest "rotate by size" => sub {
 # just testing at some non-negligible size
 subtest "rotate by size = 20Kb" => sub {
     delete_all_files();
-    my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>20*1000, callback => sub {print 'file rotated!'});
+    my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>20*1000);
     my $msg = "x" x 100;
     for (1..200) { $fwr->write($msg) }
     is( (-s 'a')  , 20000, 'first file exists and has 20Kb so far');
     is( (-e 'a.1'), undef, 'rotate files does not exists yet' );
     note('printing one more message to force rotation bondaries');
-    stdout_is { $fwr->write($msg) } 'file rotated!', 'callback function generates expected output';
+    $fwr->write($msg);
     is( (-s 'a')  ,   100, 'new file exists and has 100 bytes');
     is( (-s 'a.1'), 20000, 'rotate file exists and has 20Kb');
-	
-	my $orig_size = (-s 'a.1');
     test_gzip($fwr, ['a.1']);
-
-    # sane value
-    my $comp_size = 0;
-    $comp_size = (-s 'a.1.gz');
-    
-	if (defined($comp_size)) {
-        cmp_ok($comp_size, '<', $orig_size, 'compressed file size is smaller than before compression');
-    } else {
-        fail("there is no compressed a.1, cannot compare sizes");
-    }
-};
-
-subtest 'rotate with header' => sub {
-
-    delete_all_files();
-    my $ph;
-    $ph = set_time_to(1356090474); # 2012-12-21
-    my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>'a', period=>'daily', callback => sub { my $self = shift; $self->d_write( ["some header\n"] ) } );
-    $fwr->write("[1]");
-    is(~~read_file("a.2012-12-21"), "some header\n[1]", 'got expected content in the file (1)');
-    $fwr->write("[2]", "[3]");
-    is(~~read_file("a.2012-12-21"), "some header\n[1][2][3]", 'got expected content in the file (2)');
-    $ph = set_time_to(1356090474 + 86400); # 2012-12-22
-    $fwr->write("[4]");
-    is(~~read_file("a.2012-12-22"), "some header\n[4]", 'got expected content in the file (3)');
-
 };
 
 subtest "rotate by period, daily" => sub {
@@ -284,7 +247,14 @@ sub test_gzip {
             my $orig_size = $sizes[$counter];
             $counter++;
     	    my $new_file = $filename . '.gz';
-            ok( (-s $new_file), "rotated file $filename was compressed");
+            # sane value
+            my $comp_size = 0;
+            ok( $comp_size = (-s $new_file), "rotated file $filename was compressed");
+            #if (defined($comp_size)) {
+            #    cmp_ok($comp_size, '<', $orig_size, 'compressed file size is smaller than before compression');
+            #} else {
+            #    fail("there is no compressed $filename, cannot compare sizes");
+            #}
         }
     }
 }
