@@ -153,14 +153,22 @@ sub _rotate {
     my ($self) = @_;
 
     my $locked = $self->_lock;
-    my $files = $self->_get_files or goto EXIT;
+    my $files = $self->_get_files;
+
+	CASE: {
+
+		unless (@{$files}) {
+
+			last CASE;
+			
+		}
 
     # is there a compression process in progress? this is marked by the
     # existence of <prefix>-compress.pid PID file.
     if ( -f "$self->{dir}/$self->{prefix}-compress.pid" ) {
         warn "Compression is in progress, rotation is postponed";
-        goto EXIT;
-    }
+		last CASE;
+    } else {
 
     my $i;
     my $dir = $self->{dir};
@@ -195,8 +203,10 @@ sub _rotate {
               or warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
         }
     }
+	}
 
-  EXIT:
+	} # end of CASE block
+
     $self->_unlock if $locked;
 }
 
