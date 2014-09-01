@@ -30,6 +30,11 @@ sub new {
           or die "Invalid period, please use daily/monthly/yearly";
     }
 
+    for (grep {/\Ahook_/} keys %args) {
+        die "Invalid $_, please supply a coderef"
+            unless ref($args{$_}) eq 'CODE';
+    }
+
     if ( !$args{period} && !$args{size} ) {
         $args{size} = 10 * 1024 * 1024;
     }
@@ -54,8 +59,18 @@ sub buffer_size {
     }
 }
 
+sub handle {
+    my $self = shift;
+    $self->{_fh};
+}
+
+sub path {
+    my $self = shift;
+    $self->{_fp};
+}
+
 # file path, without the rotate suffix
-sub file_path {
+sub _file_path {
     my ($self) = @_;
 
     # _now is calculated every time we access this method
@@ -157,10 +172,18 @@ sub _rotate {
 
     # is there a compression process in progress? this is marked by the
     # existence of <prefix>-compress.pid PID file.
+    #
+    # XXX check validity of PID file, otherwise a stale PID file will always
+    # prevent rotation to be done
     if ( -f "$self->{dir}/$self->{prefix}-compress.pid" ) {
         warn "Compression is in progress, rotation is postponed";
         goto EXIT;
     }
+
+    $self->{hook_before_rotate}->($self) if $self->{hook_before_rotate};
+
+    my @deleted;
+    my @renamed;
 
     my $i;
     my $dir = $self->{dir};
@@ -178,7 +201,11 @@ sub _rotate {
 
         if ( $i <= @$files - $self->{histories} ) {
             say "DEBUG: Deleting old rotated file $dir/$orig$cs ..." if $Debug;
-            unlink "$dir/$orig$cs" or warn "Can't delete $dir/$orig$cs: $!";
+            if (unlink "$dir/$orig$cs") {
+                push @deleted, "$orig$cs";
+            } else {
+                warn "Can't delete $dir/$orig$cs: $!";
+            }
             next;
         }
         my $new = $orig;
@@ -191,10 +218,16 @@ sub _rotate {
         if ( $new ne $orig ) {
             say "DEBUG: Renaming rotated file $dir/$orig$cs -> $dir/$new$cs ..."
               if $Debug;
-            rename "$dir/$orig$cs", "$dir/$new$cs"
-              or warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
+            if (rename "$dir/$orig$cs", "$dir/$new$cs") {
+                push @renamed, "$new$cs";
+            } else {
+                warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
+            }
         }
     }
+
+    $self->{hook_after_rotate}->($self, \@renamed, \@deleted)
+        if $self->{hook_after_rotate};
 
   EXIT:
     $self->_unlock if $locked;
@@ -203,7 +236,7 @@ sub _rotate {
 sub _open {
     my $self = shift;
 
-    my ($fp, $period) = $self->file_path;
+    my ($fp, $period) = $self->_file_path;
     open $self->{_fh}, ">>", $fp or die "Can't open '$fp': $!";
     if ( defined $self->{binmode} ) {
         binmode $self->{_fh}, $self->{binmode}
@@ -213,6 +246,7 @@ sub _open {
     $| = 1;
     select $oldfh;    # set autoflush
     $self->{_fp} = $fp;
+    $self->{hook_after_create}->($self) if $self->{hook_after_create};
     $self->{_cur_period} = $period;
 }
 
@@ -221,7 +255,7 @@ sub _rotate_and_open {
 
     my $self = shift;
     my ( $do_open, $do_rotate ) = @_;
-    my $fp = $self->file_path;
+    my $fp = $self->_file_path;
 
   CASE: {
 
@@ -297,8 +331,8 @@ sub write {
 
         $self->_rotate_and_open;
 
-        # for testing only
-        $self->{_hook_before_print}->() if $self->{_hook_before_print};
+        $self->{hook_before_write}->($self, \@msg, $self->{_fh})
+            if $self->{hook_before_write};
 
         # syntax limitation? can't do print $self->{_fh} ... directly
         my $fh = $self->{_fh};
@@ -320,7 +354,7 @@ sub write {
             # to the die message anyway.
             die join(
                 "",
-                "Can't log",
+                "Can't write",
                 (
                     @{ $self->{_buffer} }
                     ? " (buffer is full, "
@@ -328,7 +362,7 @@ sub write {
                       . " message(s))"
                     : ""
                 ),
-                ": $err, log message(s)=",
+                ": $err, message(s)=",
                 @msg
             );
         }
@@ -360,8 +394,8 @@ sub compress {
                 my ($orig, $rs, $period, $cs) = @{ $file_ref };
                 #say "D:compress: orig=<$orig> rs=<$rs> period=<$period> cs=<$cs>";
                 next if $cs; # already compressed
-                next if !$self->{period} && !$rs; # not old log
-                next if  $self->{period} && $period eq $self->{_cur_period}; # not old log
+                next if !$self->{period} && !$rs; # not old file
+                next if  $self->{period} && $period eq $self->{_cur_period}; # not old file
                 push @tocompress, $orig;
             }
 
@@ -431,7 +465,7 @@ L<Tie::Handle::FileWriteRotate>).
 
 =head1 ATTRIBUTES
 
-=head2 buffer_size => INT
+=head2 buffer_size => int
 
 Get or set buffer size. If set to a value larger than 0, then when a write()
 failed, instead of dying, the message will be stored in an internal buffer first
@@ -447,6 +481,55 @@ value to hold the messages emitted during dropping privilege. The next write()
 as the superuser/root will succeed and flush the buffer to disk (provided there
 is no other error condition, of course).
 
+=head2 path => str (ro)
+
+Current file's path.
+
+=head2 handle => (ro)
+
+Current file handle. You should not use this directly under special
+circumstances (e.g. in hooks).
+
+=head2 hook_before_write => code
+
+Will be called by write() before actually writing to filehandle (but after
+locking is done). Code will be passed ($self, \@msgs, $fh) where @msgs is an
+array of strings to be written (the contents of buffer, if any, plus arguments
+passed to write()) and $fh is the filehandle.
+
+=head2 hook_before_rotate => code
+
+Will be called by the rotating routine before actually doing rotating. Code will
+be passed ($self).
+
+This can be used to write a footer to the end of each file, e.g.:
+
+ # hook_before_rotate
+ my ($self) = @_;
+ print $self->handle "Some header\n";
+
+Since this hook is indirectly called by write(), locking is already done.
+
+=head2 hook_after_rotate => code
+
+Will be called by the rotating routine after the rotating process. Code will be
+passed ($self, \@renamed, \@deleted) where @renamed is array of new filenames
+that have been renamed, @deleted is array of new filenames that have been
+deleted.
+
+=head2 hook_after_create => code
+
+Will be called by after a new file is created. Code will be passed ($self).
+
+This hook can be used to write a header to each file, e.g.:
+
+ # hook_after_create
+ my ($self, $filename, $fh) = @_;
+ print $self-
+
+Since this is called indirectly by write(), locking is also already done.
+
+=head2
 
 =head1 METHODS
 
@@ -557,7 +640,7 @@ again on the next C<write()> if necessary.
 
 =head1 FAQ
 
-=head2 Why use autorotating log?
+=head2 Why use autorotating file?
 
 Mainly convenience and low maintenance. You no longer need a separate rotator
 like the Unix B<logrotate> utility (which when accidentally disabled or
@@ -567,11 +650,11 @@ misconfigured will cause your logs to stop being rotated and grow indefinitely).
 
 Mainly performance overhead, as every write() involves locking to make it safe
 to use with multiple processes. Tested on my Core i5 3.1 GHz desktop, writing
-log lines in the size of ~ 200 bytes, raw writing to disk (SSD) has the speed of
+lines in the size of ~ 200 bytes, raw writing to disk (SSD) has the speed of
 around 3.4mil/s, while using FWR it comes down to around 19.5k/s.
 
 However, this is not something you'll notice or need to worry about unless
-you're logging near that speed.
+you're writing near that speed.
 
 
 =head1 TODO
@@ -605,7 +688,7 @@ replaces it with a simple daily/monthly/yearly period.
 
 Using separate processes like the Unix B<logrotate> utility means having to deal
 with yet another race condition. FWR takes care of that for you (see the
-compress() method). You also have the option to do log compression in the same
+compress() method). You also have the option to do file compression in the same
 script/process if you want, which is convenient.
 
 =back

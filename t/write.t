@@ -47,7 +47,7 @@ subtest "binmode ':utf8'" => sub {
 subtest "rotate by size" => sub {
     delete_all_files();
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>3);
-    is(($fwr->file_path())[1], "", "period");
+    is(($fwr->_file_path())[1], "", "period");
     $fwr->write("[1]");
     is(~~read_file("a"), "[1]");
     $fwr->write("[2]", "[3]");
@@ -75,7 +75,7 @@ subtest "rotate by period, daily" => sub {
     my $ph;
     $ph = set_time_to(1356090474); # 2012-12-21 @UTC
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", period=>"daily");
-    is(($fwr->file_path())[1], "2012-12-21", "period");
+    is(($fwr->_file_path())[1], "2012-12-21", "period");
     $fwr->write("[1]");
     is(~~read_file("a.2012-12-21"), "[1]", 'got expected content in the file (1)');
     $fwr->write("[2]", "[3]");
@@ -93,7 +93,7 @@ subtest "rotate by period, monthly" => sub {
     $ph = set_time_to(1356090474); # 2012-12-21 @UTC
     my $fwr = File::Write::Rotate->new(dir=>$dir,
                                        prefix=>"a", period=>"monthly");
-    is(($fwr->file_path())[1], "2012-12", "period");
+    is(($fwr->_file_path())[1], "2012-12", "period");
     $fwr->write("[1]");
     is(~~read_file("a.2012-12"), "[1]");
     $fwr->write("[2]", "[3]");
@@ -111,7 +111,7 @@ subtest "rotate by period, yearly" => sub {
     $ph = set_time_to(1356090474); # 2012-12-21 @UTC
     my $fwr = File::Write::Rotate->new(dir=>$dir,
                                        prefix=>"a", period=>"year");
-    is(($fwr->file_path())[1], "2012", "period");
+    is(($fwr->_file_path())[1], "2012", "period");
     $fwr->write("[1]");
     is(~~read_file("a.2012"), "[1]");
     $fwr->write("[2]", "[3]");
@@ -129,7 +129,7 @@ subtest "rotate by period + size, suffix" => sub {
     $ph = set_time_to(1356090474); # 2012-12-21 @UTC
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", suffix=>".log",
                                        size=>3, period=>"daily");
-    is(($fwr->file_path())[1], "2012-12-21", "period");
+    is(($fwr->_file_path())[1], "2012-12-21", "period");
     $fwr->write("[1]");
     is(~~read_file("a.2012-12-21.log"), "[1]");
     $fwr->write("[2]", "[3]");
@@ -173,15 +173,15 @@ subtest "rotate on first write()" => sub {
     test_gzip($fwr, ['a.1']);
 };
 
-subtest "buffer (success)" => sub {
+subtest "buffer (success), hook_before_write" => sub {
     delete_all_files();
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", buffer_size=>2);
-    $fwr->{_hook_before_print} = sub { die };
+    $fwr->{hook_before_write} = sub { die };
 
     lives_ok { $fwr->write("[1]") } "first message to buffer";
     lives_ok { $fwr->write("[2]") } "second message to buffer";
 
-    undef $fwr->{_hook_before_print};
+    undef $fwr->{hook_before_write};
 
     $fwr->write("[3]");
 
@@ -196,13 +196,29 @@ subtest "buffer (failed, full), buffer_size attribute" => sub {
     $fwr->buffer_size(2);
     is($fwr->buffer_size, 2, 'buffer_size()');
 
-    local $fwr->{_hook_before_print} = sub { die };
+    local $fwr->{hook_before_write} = sub { die };
 
     lives_ok  { $fwr->write("[1]") } "first message to buffer";
     lives_ok  { $fwr->write("[2]") } "second message to buffer";
     throws_ok { $fwr->write("[3]") } qr/\Q[1][2][3]\E/, "buffer is full";
 };
 
+subtest "hook_after_create" => sub {
+    delete_all_files();
+    my $fwr = File::Write::Rotate->new(
+        dir=>$dir, prefix=>"a",
+        hook_after_create => sub {
+            my ($self) = @_;
+            my $fh = $self->handle;
+            print $fh "header\n";
+        },
+    );
+    $fwr->write("[1]");
+    is(~~read_file("a"), "header\n[1]");
+};
+
+
+DONE_TESTING:
 done_testing;
 
 if (Test::More->builder->is_passing) {
