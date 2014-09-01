@@ -168,68 +168,71 @@ sub _rotate {
     my ($self) = @_;
 
     my $locked = $self->_lock;
-    my $files = $self->_get_files or goto EXIT;
+  CASE:
+    {
+        my $files = $self->_get_files or last CASE;
 
-    # is there a compression process in progress? this is marked by the
-    # existence of <prefix>-compress.pid PID file.
-    #
-    # XXX check validity of PID file, otherwise a stale PID file will always
-    # prevent rotation to be done
-    if ( -f "$self->{dir}/$self->{prefix}-compress.pid" ) {
-        warn "Compression is in progress, rotation is postponed";
-        goto EXIT;
-    }
+        # is there a compression process in progress? this is marked by the
+        # existence of <prefix>-compress.pid PID file.
+        #
+        # XXX check validity of PID file, otherwise a stale PID file will always
+        # prevent rotation to be done
+        if ( -f "$self->{dir}/$self->{prefix}-compress.pid" ) {
+            warn "Compression is in progress, rotation is postponed";
+            last CASE;
+        }
 
-    $self->{hook_before_rotate}->($self) if $self->{hook_before_rotate};
+        $self->{hook_before_rotate}->($self) if $self->{hook_before_rotate};
 
-    my @deleted;
-    my @renamed;
+        my @deleted;
+        my @renamed;
 
-    my $i;
-    my $dir = $self->{dir};
-    for my $f (@$files) {
-        my ( $orig, $rs, $period, $cs ) = @$f;
-        $i++;
+        my $i;
+        my $dir = $self->{dir};
+        for my $f (@$files) {
+            my ( $orig, $rs, $period, $cs ) = @$f;
+            $i++;
 
-        #say "DEBUG: is_tainted \$dir? ".is_tainted($dir);
-        #say "DEBUG: is_tainted \$orig? ".is_tainted($orig);
-        #say "DEBUG: is_tainted \$cs? ".is_tainted($cs);
+            #say "DEBUG: is_tainted \$dir? ".is_tainted($dir);
+            #say "DEBUG: is_tainted \$orig? ".is_tainted($orig);
+            #say "DEBUG: is_tainted \$cs? ".is_tainted($cs);
 
-        # TODO actually, it's more proper to taint near the source (in this
-        # case, _get_files)
-        untaint \$orig;
+            # TODO actually, it's more proper to taint near the source (in this
+            # case, _get_files)
+            untaint \$orig;
 
-        if ( $i <= @$files - $self->{histories} ) {
-            say "DEBUG: Deleting old rotated file $dir/$orig$cs ..." if $Debug;
-            if (unlink "$dir/$orig$cs") {
-                push @deleted, "$orig$cs";
-            } else {
-                warn "Can't delete $dir/$orig$cs: $!";
+            if ( $i <= @$files - $self->{histories} ) {
+                say "DEBUG: Deleting old rotated file $dir/$orig$cs ..."
+                    if $Debug;
+                if (unlink "$dir/$orig$cs") {
+                    push @deleted, "$orig$cs";
+                } else {
+                    warn "Can't delete $dir/$orig$cs: $!";
+                }
+                next;
             }
-            next;
-        }
-        my $new = $orig;
-        if ($rs) {
-            $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
-        }
-        elsif ( !$period || delete( $self->{_tmp_hack_give_suffix_to_fp} ) ) {
-            $new .= ".1";
-        }
-        if ( $new ne $orig ) {
-            say "DEBUG: Renaming rotated file $dir/$orig$cs -> $dir/$new$cs ..."
-              if $Debug;
-            if (rename "$dir/$orig$cs", "$dir/$new$cs") {
-                push @renamed, "$new$cs";
-            } else {
-                warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
+            my $new = $orig;
+            if ($rs) {
+                $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
+            }
+            elsif (!$period || delete( $self->{_tmp_hack_give_suffix_to_fp})) {
+                $new .= ".1";
+            }
+            if ( $new ne $orig ) {
+                say "DEBUG: Renaming rotated file $dir/$orig$cs -> ".
+                    "$dir/$new$cs ..." if $Debug;
+                if (rename "$dir/$orig$cs", "$dir/$new$cs") {
+                    push @renamed, "$new$cs";
+                } else {
+                    warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
+                }
             }
         }
-    }
 
-    $self->{hook_after_rotate}->($self, \@renamed, \@deleted)
-        if $self->{hook_after_rotate};
+        $self->{hook_after_rotate}->($self, \@renamed, \@deleted)
+            if $self->{hook_after_rotate};
+    } # CASE
 
-  EXIT:
     $self->_unlock if $locked;
 }
 
@@ -257,8 +260,8 @@ sub _rotate_and_open {
     my ( $do_open, $do_rotate ) = @_;
     my $fp = $self->_file_path;
 
-  CASE: {
-
+  CASE:
+    {
         unless ( -e $fp ) {
             $do_open++;
             last CASE;
@@ -308,8 +311,7 @@ sub _rotate_and_open {
             }
 
         }
-
-    }
+    } # CASE
 
     $self->_rotate if $do_rotate;
     $self->_open if $do_rotate || $do_open;    # (re)open
