@@ -1,5 +1,12 @@
 Revision history for File-Write-Rotate
 
+0.22    2014-09-01 (PERLANCAR)
+
+        - No functional changes.
+
+        - POD fixes.
+
+
 0.21    2014-09-01 (PERLANCAR)
 
         - Introduce hooks (currently:
