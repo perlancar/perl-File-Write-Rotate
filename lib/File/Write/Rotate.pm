@@ -264,12 +264,11 @@ sub _rotate_and_open {
                 die "Can't stat '$fp': $!" unless @st;
                 my $finode = $st[1];
 
-       # check whether other process has rename/rotate under us (for example,
-       # 'prefix' has been moved to 'prefix.1'), in which case we need to reopen
+                # check whether other process has rename/rotate under us (for
+                # example, 'prefix' has been moved to 'prefix.1'), in which case
+                # we need to reopen
                 if ( ( defined($inode) ) and ( $finode != $inode ) ) {
-
                     $do_open++;
-
                 }
 
             }
@@ -280,7 +279,6 @@ sub _rotate_and_open {
 
     $self->_rotate if $do_rotate;
     $self->_open if $do_rotate || $do_open;    # (re)open
-
 }
 
 sub write {
