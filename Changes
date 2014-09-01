@@ -1,5 +1,13 @@
 Revision history for File-Write-Rotate
 
+0.21    2014-09-01 (PERLANCAR)
+
+        - Introduce hooks (currently:
+          hook_{before_write,after_create,before_rotate,after_rotate}).
+
+        - Add (ro) attribute methods: handle(), path().
+
+
 0.20    2014-08-22 (SHARYANTO)
 
         - Bug fix: Set timezone when testing, otherwise in UTC+12 (e.g.
