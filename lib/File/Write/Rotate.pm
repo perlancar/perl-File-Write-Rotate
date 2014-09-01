@@ -182,7 +182,8 @@ sub _rotate {
             last CASE;
         }
 
-        $self->{hook_before_rotate}->($self) if $self->{hook_before_rotate};
+        $self->{hook_before_rotate}->($self, [map {$_->[0]} @$files])
+            if $self->{hook_before_rotate};
 
         my @deleted;
         my @renamed;

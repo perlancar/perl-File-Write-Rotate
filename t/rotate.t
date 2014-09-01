@@ -48,6 +48,45 @@ test_rotate(
 );
 
 {
+    my $executed_hook_before_rotate;
+    my $executed_hook_after_rotate;
+    test_rotate(
+        name   => "hook_before_rotate, hook_after_rotate",
+        args   => [
+            prefix=>"a", suffix=>".log", histories=>2,
+            hook_before_rotate => sub {
+                my ($self, $files) = @_;
+                is_deeply($files, [qw/a.2011.log
+                                      a.2012-10.log
+                                      a.2012-11.log
+                                      a.2012-12.log/]) or
+                    diag explain $files;
+                $executed_hook_before_rotate = 1;
+            },
+            hook_after_rotate => sub {
+                my ($self, $renamed, $deleted) = @_;
+                is_deeply($renamed, [], 'renamed argument')
+                    or diag explain $renamed;
+                is_deeply($deleted, [qw/
+                                           a.2011.log
+                                           a.2012-10.log
+                                       /], 'deleted argument')
+                    or diag explain $deleted;
+                $executed_hook_after_rotate = 1;
+            },
+        ],
+        files_before  => [qw/a.2010-01
+                             a.2011.log a.2012-10.log a.2012-11.log a.2012-12.log/],
+        files_after   => [qw/a.2010-01
+                             a.2012-11.log a.2012-12.log/],
+        after_rotate => sub {
+            ok($executed_hook_before_rotate, "hook_before_rotate executed");
+            ok($executed_hook_after_rotate , "hook_after_rotate executed");
+        },
+    );
+}
+
+{
     use tainting;
     test_rotate(
         # test rename and unlink works under tainting
