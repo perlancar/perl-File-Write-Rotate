@@ -168,24 +168,6 @@ sub _rotate {
     my ($self) = @_;
 
     my $locked = $self->_lock;
-<<<<<<< HEAD
-    my $files = $self->_get_files;
-
-	CASE: {
-
-		unless (@{$files}) {
-
-			last CASE;
-			
-		}
-
-    # is there a compression process in progress? this is marked by the
-    # existence of <prefix>-compress.pid PID file.
-    if ( -f "$self->{dir}/$self->{prefix}-compress.pid" ) {
-        warn "Compression is in progress, rotation is postponed";
-		last CASE;
-    } else {
-=======
   CASE:
     {
         my $files = $self->_get_files or last CASE;
@@ -202,7 +184,6 @@ sub _rotate {
 
         $self->{hook_before_rotate}->($self, [map {$_->[0]} @$files])
             if $self->{hook_before_rotate};
->>>>>>> upstream/master
 
         my @deleted;
         my @renamed;
@@ -248,19 +229,11 @@ sub _rotate {
                 }
             }
         }
-<<<<<<< HEAD
-    }
-	}
-
-	} # end of CASE block
-
-=======
 
         $self->{hook_after_rotate}->($self, \@renamed, \@deleted)
             if $self->{hook_after_rotate};
     } # CASE
 
->>>>>>> upstream/master
     $self->_unlock if $locked;
 }
 
@@ -481,7 +454,6 @@ sub DESTROY {
  # compress old log files
  $fwr->compress;
 
-
 =head1 DESCRIPTION
 
 This module can be used to write to file, usually for logging, that can rotate
@@ -491,7 +463,6 @@ certain size is reached), by time (daily/monthly/yearly), or both.
 
 I first wrote this module for logging script STDERR output to files (see
 L<Tie::Handle::FileWriteRotate>).
-
 
 =head1 ATTRIBUTES
 
@@ -561,8 +532,6 @@ This hook can be used to write a header to each file, e.g.:
  print $fh "header\n";
 
 Since this is called indirectly by write(), locking is also already done.
-
-=head2
 
 =head1 METHODS
 
