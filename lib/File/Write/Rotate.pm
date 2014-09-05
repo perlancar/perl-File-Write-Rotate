@@ -112,7 +112,7 @@ sub _file_path {
 
 sub lock_file_path {
     my ($self) = @_;
-    join( '', $self->{dir}, '/', $self->{prefix}, '.lck' );
+    return File::Spec->catfile($self->{dir}, $self->{prefix} . '.lck');
 }
 
 sub _lock {
@@ -430,7 +430,7 @@ sub DESTROY {
 
 #ABSTRACT: Write to files that archive/rotate themselves
 
-=for Pod::Coverage ^(file_path|lock_file_path|DESTROY)$
+=for Pod::Coverage ^(file_path|DESTROY)$
 
 =head1 SYNOPSIS
 
@@ -454,7 +454,6 @@ sub DESTROY {
  # compress old log files
  $fwr->compress;
 
-
 =head1 DESCRIPTION
 
 This module can be used to write to file, usually for logging, that can rotate
@@ -464,7 +463,6 @@ certain size is reached), by time (daily/monthly/yearly), or both.
 
 I first wrote this module for logging script STDERR output to files (see
 L<Tie::Handle::FileWriteRotate>).
-
 
 =head1 ATTRIBUTES
 
@@ -534,8 +532,6 @@ This hook can be used to write a header to each file, e.g.:
  print $fh "header\n";
 
 Since this is called indirectly by write(), locking is also already done.
-
-=head2
 
 =head1 METHODS
 
@@ -621,6 +617,11 @@ Set initial value of buffer. See the C<buffer_size> attribute for more
 information.
 
 =back
+
+=head2 lock_file_path => STR
+
+Returns a string representing the complete pathname to the lock file, based
+on C<dir> and C<prefix> attributes.
 
 =head2 $fwr->write(@args)
 

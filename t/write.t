@@ -67,7 +67,17 @@ subtest "rotate by size = 20Kb" => sub {
     $fwr->write($msg);
     is( (-s 'a')  ,   100, 'new file exists and has 100 bytes');
     is( (-s 'a.1'), 20000, 'rotate file exists and has 20Kb');
+	my $orig_size = (-s 'a.1');
     test_gzip($fwr, ['a.1']);
+    # sane value
+    my $comp_size = 0;
+    $comp_size = (-s 'a.1.gz');
+    
+	if (defined($comp_size)) {
+        cmp_ok($comp_size, '<', $orig_size, 'compressed file size is smaller than before compression');
+    } else {
+        fail("there is no compressed a.1, cannot compare sizes");
+    }
 };
 
 subtest "rotate by period, daily" => sub {
@@ -251,6 +261,7 @@ sub set_time_to {
 }
 
 sub test_gzip {
+
     my $fwr = shift;
     my $files_ref = shift;
     my @sizes;
@@ -262,7 +273,7 @@ sub test_gzip {
     my $ret = $fwr->compress;
     ok($ret, 'compress method returns true');
 
-  SKIP: {
+    SKIP: {
         skip 'compress method did not return true', (2 * scalar(@{$files_ref})) unless ($ret);
         my $counter = 0;
 
@@ -270,14 +281,7 @@ sub test_gzip {
             my $orig_size = $sizes[$counter];
             $counter++;
     	    my $new_file = $filename . '.gz';
-            # sane value
-            my $comp_size = 0;
-            ok( $comp_size = (-s $new_file), "rotated file $filename was compressed");
-            #if (defined($comp_size)) {
-            #    cmp_ok($comp_size, '<', $orig_size, 'compressed file size is smaller than before compression');
-            #} else {
-            #    fail("there is no compressed $filename, cannot compare sizes");
-            #}
+            ok( (-s $new_file), "rotated file $filename was compressed");
         }
     }
 }
