@@ -112,7 +112,7 @@ sub _file_path {
 
 sub lock_file_path {
     my ($self) = @_;
-    join( '', $self->{dir}, '/', $self->{prefix}, '.lck' );
+    return File::Spec->catfile($self->{dir}, $self->{prefix} . '.lck');
 }
 
 sub _lock {
@@ -430,7 +430,7 @@ sub DESTROY {
 
 #ABSTRACT: Write to files that archive/rotate themselves
 
-=for Pod::Coverage ^(file_path|lock_file_path|DESTROY)$
+=for Pod::Coverage ^(file_path|DESTROY)$
 
 =head1 SYNOPSIS
 
@@ -617,6 +617,11 @@ Set initial value of buffer. See the C<buffer_size> attribute for more
 information.
 
 =back
+
+=head2 lock_file_path => STR
+
+Returns a string representing the complete pathname to the lock file, based
+on C<dir> and C<prefix> attributes.
 
 =head2 $fwr->write(@args)
 
