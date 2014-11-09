@@ -72,7 +72,7 @@ subtest "rotate by size = 20Kb" => sub {
     # sane value
     my $comp_size = 0;
     $comp_size = (-s 'a.1.gz');
-    
+
 	if (defined($comp_size)) {
         cmp_ok($comp_size, '<', $orig_size, 'compressed file size is smaller than before compression');
     } else {
@@ -271,17 +271,14 @@ sub test_gzip {
     }
 
     my $ret = $fwr->compress;
-    ok($ret, 'compress method returns true');
+    ok($ret, 'compress method returns true') or return;
 
-    SKIP: {
-        skip 'compress method did not return true', (2 * scalar(@{$files_ref})) unless ($ret);
-        my $counter = 0;
-
-        for my $filename(@{$files_ref}) {
-            my $orig_size = $sizes[$counter];
-            $counter++;
-    	    my $new_file = $filename . '.gz';
-            ok( (-s $new_file), "rotated file $filename was compressed");
-        }
+    my $counter = 0;
+    for my $filename(@{$files_ref}) {
+        my $orig_size = $sizes[$counter];
+        $counter++;
+        my $new_file = $filename . '.gz';
+        ok( (-s $new_file), "rotated file $filename was compressed to $new_file"); #1
+        ok(!(-e $filename), "original $filename is deleted"); #2
     }
 }

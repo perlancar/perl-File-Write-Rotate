@@ -406,7 +406,8 @@ sub compress {
                 my $dir = $self->{dir};
                 foreach my $file (@tocompress) {
                     gzip( $file => File::Spec->catfile( $dir, "$file.gz" ) )
-                        or warn "gzip failed: $GzipError\n";
+                        or do { warn "gzip failed: $GzipError\n"; next };
+                    unlink $file;
                 }
                 $done_compression = 1;
             }
@@ -642,8 +643,9 @@ Does not append newline so you'll have to do it yourself.
 
 =head2 $fwr->compress
 
-Compress old rotated files. Currently uses L<IO::Compress::Gzip> to do the
-compression. Extension given to compressed file is C<.gz>.
+Compress old rotated files and remove the uncompressed originals. Currently uses
+L<IO::Compress::Gzip> to do the compression. Extension given to compressed file
+is C<.gz>.
 
 Will not lock writers, but will create C<< <prefix> >>C<-compress.pid> PID file
 to prevent multiple compression processes running and to signal the writers to
