@@ -451,8 +451,15 @@ sub DESTROY {
  $fwr->write("This is a line\n");
  $fwr->write("This is", " another line\n");
 
- # compress old log files
+To compressing old log files:
+
  $fwr->compress;
+
+This is usually done in a separate process, because it potentially takes a long
+time if the files to compress are large; we are rotating automatically in
+write() so doing automatic compression too would annoyingly block writer for a
+potentially long time.
+
 
 =head1 DESCRIPTION
 
