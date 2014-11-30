@@ -227,6 +227,55 @@ subtest "hook_after_create" => sub {
     is(~~read_file("a"), "header\n[1]");
 };
 
+subtest "rotate by period, daily + histories" => sub {
+    delete_all_files();
+    my $ph;
+    my $time_base = 1356090474; # 2012-12-21 @UTC
+    my $DAY = 3600 * 24;
+    $ph = set_time_to($time_base); 
+    my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", period=>"daily", histories=>2);
+    $fwr->write("[1]");
+    is_deeply(get_file_contents(), {"a.2012-12-21" => "[1]"}, "current file only");
+    $ph = set_time_to($time_base + 1 * $DAY);
+    $fwr->write("[2]");
+    is_deeply(get_file_contents(), {"a.2012-12-21" => "[1]", "a.2012-12-22" => "[2]"}, "1 history");
+    $ph = set_time_to($time_base + 2 * $DAY);
+    $fwr->write("[3]");
+    is_deeply(get_file_contents(), {"a.2012-12-21" => "[1]", "a.2012-12-22" => "[2]", "a.2012-12-23" => "[3]"},
+              "2 histories");
+    $ph = set_time_to($time_base + 3 * $DAY);
+    $fwr->write("[4]");
+    is_deeply(get_file_contents(), {"a.2012-12-22" => "[2]", "a.2012-12-23" => "[3]", "a.2012-12-24" => "[4]"},
+              "2 histories (deleted)");
+
+    undef $fwr;
+    $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", period=>"daily", histories => 2);
+    $ph = set_time_to($time_base + 4 * $DAY);
+    $fwr->write("[5]");
+    is_deeply(get_file_contents(), {"a.2012-12-23" => "[3]", "a.2012-12-24" => "[4]", "a.2012-12-25" => "[5]"},
+              "[2] is deleted even if FWR is re-created");
+};
+
+subtest "rotate by size + histories" => sub {
+    delete_all_files();
+    my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>3, histories=>2);
+    $fwr->write("[1]");
+    is_deeply(get_file_contents(), {"a" => "[1]"}, "current file only");
+    $fwr->write("[2]", "[3]");
+    is_deeply(get_file_contents(), {"a" => "[2][3]", "a.1" => "[1]"}, "1 history (rotated)");
+    $fwr->write("[4][5]");
+    is_deeply(get_file_contents(), {"a" => "[4][5]", "a.1" => "[2][3]", "a.2" => "[1]"},
+              "2 histories (rotated)");
+    $fwr->write("[6]");
+    is_deeply(get_file_contents(), {"a" => "[6]", "a.1" => "[4][5]", "a.2" => "[2][3]"},
+              "2 histories (rotated and deleted)");
+
+    undef $fwr;
+    $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>3, histories=>2);
+    $fwr->write("[7]");
+    is_deeply(get_file_contents(), {"a" => "[7]", "a.1" => "[6]", "a.2" => "[4][5]"},
+              "2 histories (rotated and deleted even if FWR is re-created)");
+};
 
 DONE_TESTING:
 done_testing;
@@ -246,9 +295,18 @@ sub delete_all_files {
     }
 }
 
-sub list_files {
+sub get_files {
     opendir my $dh, ".";
-    diag explain [grep {$_ ne '.' && $_ ne '..'} readdir $dh];
+    return [grep {$_ ne '.' && $_ ne '..'} readdir $dh];
+}
+
+sub list_files {
+    diag explain get_files();
+}
+
+sub get_file_contents {
+    my $files = get_files();
+    return { map { $_ => ~~read_file($_) } @$files };
 }
 
 our $Time;
