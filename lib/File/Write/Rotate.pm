@@ -164,7 +164,7 @@ sub _get_files {
 
 # rename (increase rotation suffix) and keep only n histories. note: failure in
 # rotating should not be fatal, we just warn and return.
-sub _rotate {
+sub _rotate_and_delete {
     my ($self) = @_;
 
     my $locked = $self->_lock;
@@ -314,7 +314,7 @@ sub _rotate_and_open {
         }
     } # CASE
 
-    $self->_rotate if $do_rotate;
+    $self->_rotate_and_delete if $do_rotate;
     $self->_open if $do_rotate || $do_open;    # (re)open
 }
 

@@ -133,7 +133,7 @@ sub test_rotate {
         write_file($_, "") for @{$args{files_before}};
         $args{before_rotate}->($fwr) if $args{before_rotate};
 
-        $fwr->_rotate;
+        $fwr->_rotate_and_delete;
 
         undef $fwr;
 
