@@ -159,7 +159,7 @@ sub _get_files {
     }
     closedir($dh);
 
-    [ sort { $b->[1] <=> $a->[1] || $a->[2] cmp $b->[2] } @files ];
+    [ sort { $a->[2] cmp $b->[2] || $b->[1] <=> $a->[1] } @files ];
 }
 
 # rename (increase rotation suffix) and keep only n histories. note: failure in
@@ -191,6 +191,7 @@ sub _rotate_and_delete {
 
         my $i;
         my $dir = $self->{dir};
+        my $rotating_period = $files->[-1][2];
         for my $f (@$files) {
             my ( $orig, $rs, $period, $cs ) = @$f;
             $i++;
@@ -213,7 +214,7 @@ sub _rotate_and_delete {
                 }
                 next;
             }
-            if(!$delete_only) {
+            if ( !$delete_only && $period eq $rotating_period ) {
                 my $new = $orig;
                 if ($rs) {
                     $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
