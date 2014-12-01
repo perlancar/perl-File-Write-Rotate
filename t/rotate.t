@@ -47,6 +47,30 @@ test_rotate(
                          a.2012-11.log a.2012-12.log.1/],
 );
 
+test_rotate(
+    name => "period, suffix (complex, no delete)",
+    args => [prefix=>"a", suffix=>".log", histories=>10],
+    files_before => [qw/a.2012-09.log a.2012-10.log a.2012-10.log.1 a.2012-10.log.2 a.2012-11.log   a.2012-11.log.1/],
+    files_after =>  [qw/a.2012-09.log a.2012-10.log a.2012-10.log.1 a.2012-10.log.2 a.2012-11.log.1 a.2012-11.log.2/]
+);
+
+test_rotate(
+    name => "period, suffix (complex, rotate and delete)",
+    args => [prefix=>"a", suffix=>".log", histories=>3],
+    files_before => [qw/a.2012-09.log a.2012-10.log a.2012-10.log.1 a.2012-10.log.2 a.2012-11.log   a.2012-11.log.1/],
+    files_after =>  [qw/              a.2012-10.log                                 a.2012-11.log.1 a.2012-11.log.2/]
+);
+
+
+test_rotate(
+    name => "period, suffix (complex, delete_only)",
+    args => [prefix=>"a", suffix=>".log", histories=>3],
+    rotate_args => [delete_only => 1],
+    files_before => [qw/a.2012-09.log a.2012-10.log a.2012-10.log.1 a.2012-10.log.2 a.2012-11.log a.2012-11.log.1/],
+    files_after =>  [qw/              a.2012-10.log                                 a.2012-11.log a.2012-11.log.1/]
+);
+
+
 {
     my $executed_hook_before_rotate;
     my $executed_hook_after_rotate;
@@ -133,7 +157,7 @@ sub test_rotate {
         write_file($_, "") for @{$args{files_before}};
         $args{before_rotate}->($fwr) if $args{before_rotate};
 
-        $fwr->_rotate_and_delete;
+        $fwr->_rotate_and_delete($args{rotate_args} ? @{$args{rotate_args}} : ());
 
         undef $fwr;
 
