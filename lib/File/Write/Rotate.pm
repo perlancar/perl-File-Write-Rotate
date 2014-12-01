@@ -255,7 +255,6 @@ sub _open {
     select $oldfh;    # set autoflush
     $self->{_fp} = $fp;
     $self->{hook_after_create}->($self) if $self->{hook_after_create};
-    $self->{_cur_period} = $period;
 }
 
 # (re)open file and optionally rotate if necessary
@@ -394,6 +393,7 @@ sub compress {
             name   => "$self->{prefix}-compress",
             verify => 1,
         );
+        my $latest_period = $files_ref->[-1][2];
 
         if ( $pid->alive ) {
             warn "Another compression is in progress";
@@ -405,7 +405,7 @@ sub compress {
                 #say "D:compress: orig=<$orig> rs=<$rs> period=<$period> cs=<$cs>";
                 next if $cs; # already compressed
                 next if !$self->{period} && !$rs; # not old file
-                next if  $self->{period} && $period eq $self->{_cur_period}; # not old file
+                next if  $self->{period} && $period eq $latest_period; # not old file
                 push @tocompress, $orig;
             }
 
