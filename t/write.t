@@ -226,6 +226,7 @@ subtest "buffer (success), hook_before_write" => sub {
 
     lives_ok { $fwr->write("[1]") } "first message to buffer";
     lives_ok { $fwr->write("[2]") } "second message to buffer";
+    ok((! -e $fwr->lock_file_path), "should be unlocked");
 
     undef $fwr->{hook_before_write};
 
@@ -234,6 +235,7 @@ subtest "buffer (success), hook_before_write" => sub {
     is(~~read_file("a"), "[1][2][3]", "buffered messages gets logged");
     $fwr->write("[4]");
     is(~~read_file("a"), "[1][2][3][4]", "buffered is emptied");
+    ok((! -e $fwr->lock_file_path), "should be unlocked");
 };
 
 subtest "buffer (failed, full), buffer_size attribute" => sub {
@@ -245,8 +247,11 @@ subtest "buffer (failed, full), buffer_size attribute" => sub {
     local $fwr->{hook_before_write} = sub { die };
 
     lives_ok  { $fwr->write("[1]") } "first message to buffer";
+    ok((! -e $fwr->lock_file_path), "should be unlocked");
     lives_ok  { $fwr->write("[2]") } "second message to buffer";
+    ok((! -e $fwr->lock_file_path), "should be unlocked");
     throws_ok { $fwr->write("[3]") } qr/\Q[1][2][3]\E/, "buffer is full";
+    ok((! -e $fwr->lock_file_path), "should be unlocked");
 };
 
 subtest "hook_after_create" => sub {
@@ -421,12 +426,19 @@ sub test_filehandle_cache {
     subtest "Filehandle cached: $label_base", sub {
         my $fwr = File::Write::Rotate->new(@$new_params_ref);
         my $get_fwr = sub { $fwr };
-        my $writer = sub { $fwr->write(@_) };
+        my $writer = sub {
+            $fwr->write(@_);
+            ok((! -e $fwr->lock_file_path), "should be unlocked");
+        };
         $code->($writer, $get_fwr);
     };
     subtest "Filehandle not cached: $label_base", sub {
         my $get_fwr = sub { File::Write::Rotate->new(@$new_params_ref) };
-        my $writer = sub { $get_fwr->()->write(@_) };
+        my $writer = sub {
+            my $fwr = $get_fwr->();
+            $fwr->write(@_);
+            ok((! -e $fwr->lock_file_path), "should be unlocked");
+        };
         $code->($writer, $get_fwr);
     };
 }
