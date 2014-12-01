@@ -191,7 +191,7 @@ sub _rotate_and_delete {
 
         my $i;
         my $dir = $self->{dir};
-        my $rotating_period = $files->[-1][2];
+        my $rotating_period = @$files ? $files->[-1][2] : undef;
         for my $f (@$files) {
             my ( $orig, $rs, $period, $cs ) = @$f;
             $i++;
@@ -214,7 +214,7 @@ sub _rotate_and_delete {
                 }
                 next;
             }
-            if ( !$delete_only && $period eq $rotating_period ) {
+            if ( !$delete_only && defined($rotating_period) && $period eq $rotating_period ) {
                 my $new = $orig;
                 if ($rs) {
                     $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
@@ -270,6 +270,8 @@ sub _rotate_and_open {
     {
         unless ( -e $fp ) {
             $do_open++;
+            $do_rotate++;
+            $rotate_params{delete_only} = 1;
             last CASE;
         }
 
