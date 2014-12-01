@@ -277,6 +277,43 @@ subtest "rotate by size + histories" => sub {
               "2 histories (rotated and deleted even if FWR is re-created)");
 };
 
+subtest "rotate by size + period + histories" => sub {
+    delete_all_files();
+    my $ph;
+    my $time_base = 1356090474; # 2012-12-21 @UTC
+    my $DAY = 3600 * 24;
+    $ph = set_time_to($time_base);
+    my %new_params = (dir=>$dir, prefix=>"a", period=>"daily", size=>3, histories=>3);
+    my $fwr = File::Write::Rotate->new(%new_params);
+    $fwr->write("[1]");
+    is_deeply(get_file_contents(), {"a.2012-12-21" => "[1]"});
+    $fwr->write("[2]");
+    is_deeply(get_file_contents(), {"a.2012-12-21.1" => "[1]", "a.2012-12-21" => "[2]"});
+    $ph = set_time_to($time_base + 1 * $DAY);
+    $fwr->write("[3]");
+    is_deeply(get_file_contents(), {"a.2012-12-21.1" => "[1]", "a.2012-12-21" => "[2]", "a.2012-12-22" => "[3]"});
+    $fwr->write("[4]");
+    is_deeply(get_file_contents(),
+              {"a.2012-12-21.1" => "[1]", "a.2012-12-21" => "[2]", "a.2012-12-22.1" => "[3]", "a.2012-12-22" => "[4]"},
+              "rotate 2012-12-22 but NOT 2012-12-21");
+    $fwr->write("[5]");
+    is_deeply(get_file_contents(),
+              {"a.2012-12-21" => "[2]", "a.2012-12-22.2" => "[3]", "a.2012-12-22.1" => "[4]", "a.2012-12-22" => "[5]"},
+              "delete [1] as a result of rotating at 2012-12-22");
+    $ph = set_time_to($time_base + 2 * $DAY);
+    $fwr->write("[6]");
+    is_deeply(get_file_contents(),
+              {"a.2012-12-22.2" => "[3]", "a.2012-12-22.1" => "[4]", "a.2012-12-22" => "[5]", "a.2012-12-23" => "[6]"},
+              "delete [2] as a result of entering the new period");
+    $fwr->write("[7");
+    is_deeply(get_file_contents(),
+              {"a.2012-12-22.1" => "[4]", "a.2012-12-22" => "[5]", "a.2012-12-23.1" => "[6]", "a.2012-12-23" => "[7"});
+    $fwr->write("]");
+    is_deeply(get_file_contents(),
+              {"a.2012-12-22.1" => "[4]", "a.2012-12-22" => "[5]", "a.2012-12-23.1" => "[6]", "a.2012-12-23" => "[7]"},
+              "not rotating because it's within the size limite");
+};
+
 DONE_TESTING:
 done_testing;
 
