@@ -165,8 +165,9 @@ sub _get_files {
 # rename (increase rotation suffix) and keep only n histories. note: failure in
 # rotating should not be fatal, we just warn and return.
 sub _rotate_and_delete {
-    my ($self) = @_;
+    my ($self, %opts) = @_;
 
+    my $delete_only = $opts{delete_only};
     my $locked = $self->_lock;
   CASE:
     {
@@ -212,20 +213,22 @@ sub _rotate_and_delete {
                 }
                 next;
             }
-            my $new = $orig;
-            if ($rs) {
-                $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
-            }
-            elsif (!$period || delete( $self->{_tmp_hack_give_suffix_to_fp})) {
-                $new .= ".1";
-            }
-            if ( $new ne $orig ) {
-                say "DEBUG: Renaming rotated file $dir/$orig$cs -> ".
-                    "$dir/$new$cs ..." if $Debug;
-                if (rename "$dir/$orig$cs", "$dir/$new$cs") {
-                    push @renamed, "$new$cs";
-                } else {
-                    warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
+            if(!$delete_only) {
+                my $new = $orig;
+                if ($rs) {
+                    $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
+                }
+                else {
+                    $new .= ".1";
+                }
+                if ( $new ne $orig ) {
+                    say "DEBUG: Renaming rotated file $dir/$orig$cs -> ".
+                        "$dir/$new$cs ..." if $Debug;
+                    if (rename "$dir/$orig$cs", "$dir/$new$cs") {
+                        push @renamed, "$new$cs";
+                    } else {
+                        warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
+                    }
                 }
             }
         }
@@ -260,6 +263,7 @@ sub _rotate_and_open {
     my $self = shift;
     my ( $do_open, $do_rotate ) = @_;
     my $fp = $self->_file_path;
+    my %rotate_params = ();
 
   CASE:
     {
@@ -276,6 +280,7 @@ sub _rotate_and_open {
         # period has changed, rotate
         if ( $self->{_fp} ne $fp ) {
             $do_rotate++;
+            $rotate_params{delete_only} = 1;
             last CASE;
         }
 
@@ -292,7 +297,6 @@ sub _rotate_and_open {
                 say "DEBUG: Size of $self->{_fp} is $size, exceeds $self->{size}, rotating ..."
                     if $Debug;
                 $do_rotate++;
-                $self->{_tmp_hack_give_suffix_to_fp} = 1;
                 last CASE;
             }
             else {
@@ -314,7 +318,7 @@ sub _rotate_and_open {
         }
     } # CASE
 
-    $self->_rotate_and_delete if $do_rotate;
+    $self->_rotate_and_delete(%rotate_params) if $do_rotate;
     $self->_open if $do_rotate || $do_open;    # (re)open
 }
 

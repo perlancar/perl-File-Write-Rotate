@@ -44,7 +44,7 @@ test_rotate(
     files_before  => [qw/a.2010-01
                          a.2011.log a.2012-10.log a.2012-11.log a.2012-12.log/],
     files_after   => [qw/a.2010-01
-                         a.2012-11.log a.2012-12.log/],
+                         a.2012-11.log a.2012-12.log.1/],
 );
 
 {
@@ -65,7 +65,7 @@ test_rotate(
             },
             hook_after_rotate => sub {
                 my ($self, $renamed, $deleted) = @_;
-                is_deeply($renamed, [], 'renamed argument')
+                is_deeply($renamed, ["a.2012-12.log.1"], 'renamed argument')
                     or diag explain $renamed;
                 is_deeply($deleted, [qw/
                                            a.2011.log
@@ -78,7 +78,7 @@ test_rotate(
         files_before  => [qw/a.2010-01
                              a.2011.log a.2012-10.log a.2012-11.log a.2012-12.log/],
         files_after   => [qw/a.2010-01
-                             a.2012-11.log a.2012-12.log/],
+                             a.2012-11.log a.2012-12.log.1/],
         after_rotate => sub {
             ok($executed_hook_before_rotate, "hook_before_rotate executed");
             ok($executed_hook_after_rotate , "hook_after_rotate executed");
