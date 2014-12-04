@@ -11,6 +11,7 @@ use Taint::Runtime qw(untaint is_tainted);
 use Time::HiRes 'time';
 use IO::Compress::Gzip qw(gzip $GzipError);
 use File::Spec;
+use Scalar::Util qw(weaken);
 
 # VERSION
 our $Debug;
@@ -115,23 +116,15 @@ sub lock_file_path {
     return File::Spec->catfile($self->{dir}, $self->{prefix} . '.lck');
 }
 
-sub _lock {
+sub _get_lock {
     my ($self) = @_;
+    return $self->{_weak_lock} if defined($self->{_weak_lock});
 
-    if ( $self->{_lock} ) {
-        return $self->{_lock}->_lock;
-    }
-    else {
-        require SHARYANTO::File::Flock;
-        $self->{_lock} = SHARYANTO::File::Flock->lock( $self->lock_file_path );
-        return 1;
-    }
-}
-
-sub _unlock {
-    my ($self) = @_;
-
-    $self->{_lock}->_unlock if $self->{_lock};
+    require SHARYANTO::File::Flock;
+    my $lock = SHARYANTO::File::Flock->lock( $self->lock_file_path );
+    $self->{_weak_lock} = $lock;
+    weaken $self->{_weak_lock};
+    return $lock;
 }
 
 # will return \@files. each entry is [filename without compress suffix,
@@ -168,7 +161,7 @@ sub _rotate_and_delete {
     my ($self, %opts) = @_;
 
     my $delete_only = $opts{delete_only};
-    my $locked = $self->_lock;
+    my $lock = $self->_get_lock;
   CASE:
     {
         my $files = $self->_get_files or last CASE;
@@ -237,8 +230,6 @@ sub _rotate_and_delete {
         $self->{hook_after_rotate}->($self, \@renamed, \@deleted)
             if $self->{hook_after_rotate};
     } # CASE
-
-    $self->_unlock if $locked;
 }
 
 sub _open {
@@ -336,7 +327,7 @@ sub write {
     my @msg = ( map( {@$_} @{ $self->{_buffer} } ), @_ );
 
     eval {
-        my $locked = $self->_lock;
+        my $lock = $self->_get_lock;
 
         $self->_rotate_and_open;
 
@@ -348,7 +339,6 @@ sub write {
         print $fh @msg;
         $self->{_buffer} = [];
 
-        $self->_unlock if $locked;
     };
     my $err = $@;
 
@@ -383,7 +373,7 @@ sub compress {
 
     require Proc::PID::File;
 
-    my $locked           = $self->_lock;
+    my $lock           = $self->_get_lock;
     my $files_ref        = $self->_get_files;
     my $done_compression = 0;
 
@@ -421,14 +411,12 @@ sub compress {
         }
     }
 
-    $self->_unlock if $locked;
     return $done_compression;
 
 }
 
 sub DESTROY {
     my ($self) = @_;
-    $self->_unlock;
 
     # Proc::PID::File's DESTROY seem to create an empty PID file, remove it.
     unlink "$self->{dir}/$self->{prefix}-compress.pid";
