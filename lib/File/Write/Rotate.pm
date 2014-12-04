@@ -631,6 +631,16 @@ keep C<.1> file, and so on.
 Set initial value of buffer. See the C<buffer_size> attribute for more
 information.
 
+=item * hook_before_write => CODE
+
+=item * hook_before_rotate => CODE
+
+=item * hook_after_rotate => CODE
+
+=item * hook_after_create => CODE
+
+See L</ATTRIBUTES>.
+
 =back
 
 =head2 lock_file_path => STR
