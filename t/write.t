@@ -219,6 +219,27 @@ subtest "rotate on first write()" => sub {
     test_gzip($fwr, ['a.1']);
 };
 
+{
+    my @got_messages = ();
+    test_filehandle_cache(
+        label => "hook_before_write basic",
+        new_params => [dir=>$dir, prefix=>"a", hook_before_write => sub {
+            my ($fwr, $msgs, $fh) = @_;
+            push @got_messages, [@$msgs];
+            ok((-e $fwr->lock_file_path), "lock file exists");
+            print $fh "hook_before_write";
+        }],
+        code => sub {
+            my ($writer) = @_;
+            delete_all_files();
+            @got_messages = ();
+            $writer->("a", "b");
+            is_deeply(\@got_messages, [["a", "b"]], "hook messages OK");
+            is_deeply(get_file_contents(), {"a" => "hook_before_writeab"}, "content OK");
+        }
+    );
+}
+
 subtest "buffer (success), hook_before_write" => sub {
     delete_all_files();
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", buffer_size=>2);
