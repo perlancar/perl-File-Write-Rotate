@@ -1,5 +1,25 @@
 Revision history for File-Write-Rotate
 
+0.24    2014-12-05 (PERLANCAR)
+
+        - These changes are done by TOSHIOITO++.
+
+	[BUG FIXES]
+
+        - Make sure lock is released even when write() or some hook dies.
+
+        - Fix rotation, rotation by period previously never delete old files.
+
+        [INCOMPATIBLE CHANGES]
+
+        - compress() method now avoids compressing files with the latest period.
+          Before, this method avoided compressing files with the period of
+          "_cur_period" private attribute, which was set by _open(). However,
+          "_cur_period" was not set if compress() was called without calling
+          write() beforehand. The new behavior is a little different from the
+          old, but it's the same in most cases.
+
+
 0.23    2014-11-09 (PERLANCAR)
 
 	- compress() now unlinks uncompressed originals (this is the
