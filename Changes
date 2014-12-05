@@ -1,5 +1,13 @@
 Revision history for File-Write-Rotate
 
+0.25    2014-12-05 (PERLANCAR)
+
+	- No functional changes.
+
+	- Use new name of renamed module SHARYANTO::File::Flock ->
+	  File::Flock::Retry.
+
+
 0.24    2014-12-05 (PERLANCAR)
 
         - These changes are done by TOSHIOITO++.
