@@ -11,6 +11,7 @@ use Taint::Runtime qw(untaint is_tainted);
 use Time::HiRes 'time';
 use IO::Compress::Gzip qw(gzip $GzipError);
 use File::Spec;
+use Scalar::Util qw(weaken);
 
 # VERSION
 our $Debug;
@@ -115,23 +116,15 @@ sub lock_file_path {
     return File::Spec->catfile($self->{dir}, $self->{prefix} . '.lck');
 }
 
-sub _lock {
+sub _get_lock {
     my ($self) = @_;
+    return $self->{_weak_lock} if defined($self->{_weak_lock});
 
-    if ( $self->{_lock} ) {
-        return $self->{_lock}->_lock;
-    }
-    else {
-        require SHARYANTO::File::Flock;
-        $self->{_lock} = SHARYANTO::File::Flock->lock( $self->lock_file_path );
-        return 1;
-    }
-}
-
-sub _unlock {
-    my ($self) = @_;
-
-    $self->{_lock}->_unlock if $self->{_lock};
+    require SHARYANTO::File::Flock;
+    my $lock = SHARYANTO::File::Flock->lock( $self->lock_file_path );
+    $self->{_weak_lock} = $lock;
+    weaken $self->{_weak_lock};
+    return $lock;
 }
 
 # will return \@files. each entry is [filename without compress suffix,
@@ -159,15 +152,16 @@ sub _get_files {
     }
     closedir($dh);
 
-    [ sort { $b->[1] <=> $a->[1] || $a->[2] cmp $b->[2] } @files ];
+    [ sort { $a->[2] cmp $b->[2] || $b->[1] <=> $a->[1] } @files ];
 }
 
 # rename (increase rotation suffix) and keep only n histories. note: failure in
 # rotating should not be fatal, we just warn and return.
-sub _rotate {
-    my ($self) = @_;
+sub _rotate_and_delete {
+    my ($self, %opts) = @_;
 
-    my $locked = $self->_lock;
+    my $delete_only = $opts{delete_only};
+    my $lock = $self->_get_lock;
   CASE:
     {
         my $files = $self->_get_files or last CASE;
@@ -190,6 +184,7 @@ sub _rotate {
 
         my $i;
         my $dir = $self->{dir};
+        my $rotating_period = @$files ? $files->[-1][2] : undef;
         for my $f (@$files) {
             my ( $orig, $rs, $period, $cs ) = @$f;
             $i++;
@@ -212,20 +207,22 @@ sub _rotate {
                 }
                 next;
             }
-            my $new = $orig;
-            if ($rs) {
-                $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
-            }
-            elsif (!$period || delete( $self->{_tmp_hack_give_suffix_to_fp})) {
-                $new .= ".1";
-            }
-            if ( $new ne $orig ) {
-                say "DEBUG: Renaming rotated file $dir/$orig$cs -> ".
-                    "$dir/$new$cs ..." if $Debug;
-                if (rename "$dir/$orig$cs", "$dir/$new$cs") {
-                    push @renamed, "$new$cs";
-                } else {
-                    warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
+            if ( !$delete_only && defined($rotating_period) && $period eq $rotating_period ) {
+                my $new = $orig;
+                if ($rs) {
+                    $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
+                }
+                else {
+                    $new .= ".1";
+                }
+                if ( $new ne $orig ) {
+                    say "DEBUG: Renaming rotated file $dir/$orig$cs -> ".
+                        "$dir/$new$cs ..." if $Debug;
+                    if (rename "$dir/$orig$cs", "$dir/$new$cs") {
+                        push @renamed, "$new$cs";
+                    } else {
+                        warn "Can't rename '$dir/$orig$cs' -> '$dir/$new$cs': $!";
+                    }
                 }
             }
         }
@@ -233,8 +230,6 @@ sub _rotate {
         $self->{hook_after_rotate}->($self, \@renamed, \@deleted)
             if $self->{hook_after_rotate};
     } # CASE
-
-    $self->_unlock if $locked;
 }
 
 sub _open {
@@ -251,7 +246,6 @@ sub _open {
     select $oldfh;    # set autoflush
     $self->{_fp} = $fp;
     $self->{hook_after_create}->($self) if $self->{hook_after_create};
-    $self->{_cur_period} = $period;
 }
 
 # (re)open file and optionally rotate if necessary
@@ -260,11 +254,14 @@ sub _rotate_and_open {
     my $self = shift;
     my ( $do_open, $do_rotate ) = @_;
     my $fp = $self->_file_path;
+    my %rotate_params = ();
 
   CASE:
     {
         unless ( -e $fp ) {
             $do_open++;
+            $do_rotate++;
+            $rotate_params{delete_only} = 1;
             last CASE;
         }
 
@@ -276,6 +273,7 @@ sub _rotate_and_open {
         # period has changed, rotate
         if ( $self->{_fp} ne $fp ) {
             $do_rotate++;
+            $rotate_params{delete_only} = 1;
             last CASE;
         }
 
@@ -292,7 +290,6 @@ sub _rotate_and_open {
                 say "DEBUG: Size of $self->{_fp} is $size, exceeds $self->{size}, rotating ..."
                     if $Debug;
                 $do_rotate++;
-                $self->{_tmp_hack_give_suffix_to_fp} = 1;
                 last CASE;
             }
             else {
@@ -314,7 +311,7 @@ sub _rotate_and_open {
         }
     } # CASE
 
-    $self->_rotate if $do_rotate;
+    $self->_rotate_and_delete(%rotate_params) if $do_rotate;
     $self->_open if $do_rotate || $do_open;    # (re)open
 }
 
@@ -330,7 +327,7 @@ sub write {
     my @msg = ( map( {@$_} @{ $self->{_buffer} } ), @_ );
 
     eval {
-        my $locked = $self->_lock;
+        my $lock = $self->_get_lock;
 
         $self->_rotate_and_open;
 
@@ -342,7 +339,6 @@ sub write {
         print $fh @msg;
         $self->{_buffer} = [];
 
-        $self->_unlock if $locked;
     };
     my $err = $@;
 
@@ -377,7 +373,7 @@ sub compress {
 
     require Proc::PID::File;
 
-    my $locked           = $self->_lock;
+    my $lock           = $self->_get_lock;
     my $files_ref        = $self->_get_files;
     my $done_compression = 0;
 
@@ -387,6 +383,7 @@ sub compress {
             name   => "$self->{prefix}-compress",
             verify => 1,
         );
+        my $latest_period = $files_ref->[-1][2];
 
         if ( $pid->alive ) {
             warn "Another compression is in progress";
@@ -398,7 +395,7 @@ sub compress {
                 #say "D:compress: orig=<$orig> rs=<$rs> period=<$period> cs=<$cs>";
                 next if $cs; # already compressed
                 next if !$self->{period} && !$rs; # not old file
-                next if  $self->{period} && $period eq $self->{_cur_period}; # not old file
+                next if  $self->{period} && $period eq $latest_period; # not old file
                 push @tocompress, $orig;
             }
 
@@ -414,14 +411,12 @@ sub compress {
         }
     }
 
-    $self->_unlock if $locked;
     return $done_compression;
 
 }
 
 sub DESTROY {
     my ($self) = @_;
-    $self->_unlock;
 
     # Proc::PID::File's DESTROY seem to create an empty PID file, remove it.
     unlink "$self->{dir}/$self->{prefix}-compress.pid";
@@ -623,6 +618,16 @@ keep C<.1> file, and so on.
 
 Set initial value of buffer. See the C<buffer_size> attribute for more
 information.
+
+=item * hook_before_write => CODE
+
+=item * hook_before_rotate => CODE
+
+=item * hook_after_rotate => CODE
+
+=item * hook_after_create => CODE
+
+See L</ATTRIBUTES>.
 
 =back
 
