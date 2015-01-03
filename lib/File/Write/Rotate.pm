@@ -680,10 +680,6 @@ However, this is not something you'll notice or need to worry about unless
 you're writing near that speed.
 
 
-=head1 TODO
-
-Perhaps an option to disable locking.
-
 =head1 SEE ALSO
 
 L<Log::Dispatch::FileRotate>, which inspires this module. Differences between
