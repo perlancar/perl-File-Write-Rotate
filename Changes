@@ -1,5 +1,14 @@
 Revision history for File-Write-Rotate
 
+0.26    2015-01-22 (PERLANCAR)
+
+        - Add option: lock_mode (can be set to 'write' [the default] or
+          'none'/'exclusive'). Setting this option to 'none'/'exclusive' can
+          increase write performance, but setting to 'none' means disabling
+          locking and should be done if you expect only one writer, and setting
+          to 'exclusive' means holding the lock for a long time.
+
+
 0.25    2014-12-05 (PERLANCAR)
 
 	- No functional changes.
