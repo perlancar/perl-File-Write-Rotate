@@ -632,17 +632,16 @@ keep C<.1> file, and so on.
 Set initial value of buffer. See the C<buffer_size> attribute for more
 information.
 
-=item * locking => STR (default: 'write')
+=item * lock_mode => STR (default: 'write')
 
-Can be set to either C<none>, C<write>, or C<exclusive>.
-C<none> disables locking. This must only be used if there is only
-one writer.
-C<write> acquires and holds the lock for each write.
-C<exclusive> acquires the lock at object creation and holds it until the
-the object is destroyed.
-Locking prevents multiple writers from clobbering one another.
-Lock file is named C<< <prefix> >>C<.lck>. Will wait for up
-to 1 minute to acquire lock, will die if failed to acquire lock.
+Can be set to either C<none>, C<write>, or C<exclusive>. C<none> disables
+locking and increases write performance, but should only be used when there is
+only one writer. C<write> acquires and holds the lock for each write.
+C<exclusive> acquires the lock at object creation and holds it until the the
+object is destroyed.
+
+Lock file is named C<< <prefix> >>C<.lck>. Will wait for up to 1 minute to
+acquire lock, will die if failed to acquire lock.
 
 =item * hook_before_write => CODE
 
@@ -687,15 +686,20 @@ again on the next C<write()> if necessary.
 =head2 Why use autorotating file?
 
 Mainly convenience and low maintenance. You no longer need a separate rotator
-like the Unix B<logrotate> utility (which when accidentally disabled or
+process like the Unix B<logrotate> utility (which when accidentally disabled or
 misconfigured will cause your logs to stop being rotated and grow indefinitely).
 
 =head2 What is the downside of using FWR (and LDFR)?
 
-Mainly performance overhead, as every write() involves locking to make it safe
-to use with multiple processes. Tested on my Core i5 3.1 GHz desktop, writing
-lines in the size of ~ 200 bytes, raw writing to disk (SSD) has the speed of
-around 3.4mil/s, while using FWR it comes down to around 19.5k/s.
+Mainly (significant) performance overhead. At (almost) every C<write()>, FWR
+needs to check file sizes and dates for rotation. Under default configuration
+(where C<lock_mode> is C<write>), it also performs locking on each C<write()> to
+make it safe to use with multiple processes. Below is a casual benchmark to give
+a sense of the overhead, tested on my Core i5-2400 3.1GHz desktop:
+
+Writing lines in the size of ~ 200 bytes, raw writing to disk (SSD) has the
+speed of around 3.4mil/s, while using FWR it goes down to around ~13k/s. Using
+C<lock_mode> C<none> or C<exclusive>, the speed is ~52k/s.
 
 However, this is not something you'll notice or need to worry about unless
 you're writing near that speed.
