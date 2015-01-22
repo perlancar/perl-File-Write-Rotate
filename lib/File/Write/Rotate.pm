@@ -10,6 +10,7 @@ use warnings;
 # we must not use Log::Any, looping if we are used as log output
 #use Log::Any '$log';
 
+use Carp;
 use File::Spec;
 use IO::Compress::Gzip qw(gzip $GzipError);
 use Scalar::Util qw(weaken);
@@ -22,19 +23,19 @@ sub new {
     my $class = shift;
     my %args  = @_;
 
-    defined( $args{dir} )    or die "Please specify dir";
-    defined( $args{prefix} ) or die "Please specify prefix";
+    defined( $args{dir} )    or croak "Please specify dir";
+    defined( $args{prefix} ) or croak "Please specify prefix";
     $args{suffix} //= "";
 
     $args{size} //= 0;
 
     if ( $args{period} ) {
         $args{period} =~ /daily|day|month|year/i
-          or die "Invalid period, please use daily/monthly/yearly";
+          or croak "Invalid period, please use daily/monthly/yearly";
     }
 
     for (grep {/\Ahook_/} keys %args) {
-        die "Invalid $_, please supply a coderef"
+        croak "Invalid $_, please supply a coderef"
             unless ref($args{$_}) eq 'CODE';
     }
 
