@@ -47,13 +47,14 @@ sub new {
 
     $args{_buffer} = [];
 
-    $args{locking} //= 'write';
-    $args{locking} =~ /none|write|exclusive/i
-      or die "Invalid locking type, please use none/write/exclusive";
+    $args{lock_mode} //= 'write';
+    $args{lock_mode} =~ /\A(none|write|exclusive)\z/
+      or croak "Invalid lock_mode, please use none/write/exclusive";
 
     my $self = bless \%args, $class;
 
-    $self->{_exclusive_lock} = $self->_get_lock if $self->{locking} =~ /exclusive/i;
+    $self->{_exclusive_lock} = $self->_get_lock
+        if $self->{lock_mode} eq 'exclusive';
 
     $self;
 }
