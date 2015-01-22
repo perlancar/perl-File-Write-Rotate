@@ -9,8 +9,8 @@ use File::Temp qw(tempdir);
 use File::Write::Rotate;
 
 use Test::Exception;
-use Test::Warnings qw(:no_end_test warnings);
 use Test::More 0.98;
+use Test::Warnings qw(:no_end_test warnings);
 
 my $dir = tempdir(CLEANUP=>1);
 $CWD = $dir;
