@@ -19,7 +19,7 @@ test_locking(
     label => "none",
     prefix => "a",
     new_params => {
-        locking => "none",
+        lock_mode => "none",
     },
     locked_write => 0,
     locked_creation => 0,
@@ -29,7 +29,7 @@ test_locking(
     label => "write",
     prefix => "b",
     new_params => {
-        locking => "write",
+        lock_mode => "write",
     },
     locked_write => 1,
     locked_creation => 0,
@@ -39,7 +39,7 @@ test_locking(
     label => "exclusive",
     prefix => "c",
     new_params => {
-        locking => "exclusive",
+        lock_mode => "exclusive",
     },
     locked_write => 1,
     locked_creation => 1,

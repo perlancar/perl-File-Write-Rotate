@@ -129,7 +129,7 @@ sub lock_file_path {
 
 sub _get_lock {
     my ($self) = @_;
-    return undef if $self->{locking} =~ /none/i;
+    return undef if $self->{lock_mode} eq 'none';
     return $self->{_weak_lock} if defined($self->{_weak_lock});
 
     require File::Flock::Retry;
@@ -472,9 +472,9 @@ potentially long time.
 =head1 DESCRIPTION
 
 This module can be used to write to file, usually for logging, that can rotate
-itself. File will be opened in append mode. Locking will be done to avoid
-conflict when there are multiple writers. Rotation can be done by size (after a
-certain size is reached), by time (daily/monthly/yearly), or both.
+itself. File will be opened in append mode. By default, locking will be done to
+avoid conflict when there are multiple writers. Rotation can be done by size
+(after a certain size is reached), by time (daily/monthly/yearly), or both.
 
 I first wrote this module for logging script STDERR output to files (see
 L<Tie::Handle::FileWriteRotate>).
@@ -547,6 +547,7 @@ This hook can be used to write a header to each file, e.g.:
  print $fh "header\n";
 
 Since this is called indirectly by write(), locking is also already done.
+
 
 =head1 METHODS
 
