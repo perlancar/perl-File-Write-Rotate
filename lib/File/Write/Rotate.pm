@@ -46,7 +46,14 @@ sub new {
 
     $args{_buffer} = [];
 
+    $args{locking} //= 'write';
+    $args{locking} =~ /none|write|exclusive/i
+      or die "Invalid locking type, please use none/write/exclusive";
+
     my $self = bless \%args, $class;
+
+    $self->{_exclusive_lock} = $self->_get_lock if $self->{locking} =~ /exclusive/i;
+
     $self;
 }
 
@@ -120,6 +127,7 @@ sub lock_file_path {
 
 sub _get_lock {
     my ($self) = @_;
+    return undef if $self->{locking} =~ /none/i;
     return $self->{_weak_lock} if defined($self->{_weak_lock});
 
     require File::Flock::Retry;
@@ -621,6 +629,18 @@ keep C<.1> file, and so on.
 Set initial value of buffer. See the C<buffer_size> attribute for more
 information.
 
+=item * locking => STR (default: 'write')
+
+Can be set to either C<none>, C<write>, or C<exclusive>.
+C<none> disables locking. This must only be used if there is only
+one writer.
+C<write> acquires and holds the lock for each write.
+C<exclusive> acquires the lock at object creation and holds it until the
+the object is destroyed.
+Locking prevents multiple writers from clobbering one another.
+Lock file is named C<< <prefix> >>C<.lck>. Will wait for up
+to 1 minute to acquire lock, will die if failed to acquire lock.
+
 =item * hook_before_write => CODE
 
 =item * hook_before_rotate => CODE
@@ -642,9 +662,7 @@ on C<dir> and C<prefix> attributes.
 
 Write to file. Will automatically rotate file if period changes or file size
 exceeds specified limit. When rotating, will only keep a specified number of
-histories and delete the older ones. Uses locking, so multiple writers do not
-clobber one another. Lock file is named C<< <prefix> >>C<.lck>. Will wait for up
-to 1 minute to acquire lock, will die if failed to acquire lock.
+histories and delete the older ones.
 
 Does not append newline so you'll have to do it yourself.
 
