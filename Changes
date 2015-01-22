@@ -6,7 +6,8 @@ Revision history for File-Write-Rotate
           'none'/'exclusive'). Setting this option to 'none'/'exclusive' can
           increase write performance, but setting to 'none' means disabling
           locking and should be done if you expect only one writer, and setting
-          to 'exclusive' means holding the lock for a long time.
+          to 'exclusive' means holding the lock for a long time. [Thanks
+          Jonathan G. Rennison].
 
 
 0.25    2014-12-05 (PERLANCAR)
