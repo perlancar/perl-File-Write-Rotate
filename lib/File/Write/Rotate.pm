@@ -408,13 +408,12 @@ sub compress {
                 next if $cs; # already compressed
                 next if !$self->{period} && !$rs; # not old file
                 next if  $self->{period} && $period eq $latest_period; # not old file
-                push @tocompress, $orig;
+                push @tocompress, File::Spec->catfile( $self->{dir}, $orig );
             }
 
             if (@tocompress) {
-                my $dir = $self->{dir};
                 foreach my $file (@tocompress) {
-                    gzip( $file => File::Spec->catfile( $dir, "$file.gz" ) )
+                    gzip( $file => "$file.gz" )
                         or do { warn "gzip failed: $GzipError\n"; next };
                     unlink $file;
                 }
