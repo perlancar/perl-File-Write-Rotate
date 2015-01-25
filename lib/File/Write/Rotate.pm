@@ -29,7 +29,7 @@ sub new {
 
     $args{size} //= 0;
 
-    if ( $args{period} ) {
+    if ($args{period}) {
         $args{period} =~ /daily|day|month|year/i
           or croak "Invalid period, please use daily/monthly/yearly";
     }
@@ -39,7 +39,7 @@ sub new {
             unless ref($args{$_}) eq 'CODE';
     }
 
-    if ( !$args{period} && !$args{size} ) {
+    if (!$args{period} && !$args{size}) {
         $args{size} = 10 * 1024 * 1024;
     }
 
@@ -65,8 +65,7 @@ sub buffer_size {
         my $old = $self->{buffer_size};
         $self->{buffer_size} = $_[0];
         return $old;
-    }
-    else {
+    } else {
         return $self->{buffer_size};
     }
 }
@@ -93,18 +92,15 @@ sub _file_path {
     $lt[4]++;
 
     my $period;
-    if ( $self->{period} ) {
-        if ( $self->{period} =~ /year/i ) {
-            $period = sprintf( "%04d", $lt[5] );
+    if ($self->{period}) {
+        if ($self->{period} =~ /year/i) {
+            $period = sprintf("%04d", $lt[5]);
+        } elsif ($self->{period} =~ /month/i) {
+            $period = sprintf("%04d-%02d", $lt[5], $lt[4]);
+        } elsif ($self->{period} =~ /day|daily/i) {
+            $period = sprintf("%04d-%02d-%02d", $lt[5], $lt[4], $lt[3]);
         }
-        elsif ( $self->{period} =~ /month/i ) {
-            $period = sprintf( "%04d-%02d", $lt[5], $lt[4] );
-        }
-        elsif ( $self->{period} =~ /day|daily/i ) {
-            $period = sprintf( "%04d-%02d-%02d", $lt[5], $lt[4], $lt[3] );
-        }
-    }
-    else {
+    } else {
         $period = "";
     }
 
@@ -151,7 +147,7 @@ sub _get_files {
     };
 
     my @files;
-    while ( my $e = readdir($dh) ) {
+    while (my $e = readdir($dh)) {
         my $cs = $1 if $e =~ s/(\.gz)\z//; # compress suffix
         next unless $e =~ /\A\Q$self->{prefix}\E
                            (?:\. (?<period>\d{4}(?:-\d\d(?:-\d\d)?)?) )?
@@ -183,7 +179,7 @@ sub _rotate_and_delete {
         #
         # XXX check validity of PID file, otherwise a stale PID file will always
         # prevent rotation to be done
-        if ( -f "$self->{dir}/$self->{prefix}-compress.pid" ) {
+        if (-f "$self->{dir}/$self->{prefix}-compress.pid") {
             warn "Compression is in progress, rotation is postponed";
             last CASE;
         }
@@ -198,7 +194,7 @@ sub _rotate_and_delete {
         my $dir = $self->{dir};
         my $rotating_period = @$files ? $files->[-1][2] : undef;
         for my $f (@$files) {
-            my ( $orig, $rs, $period, $cs ) = @$f;
+            my ($orig, $rs, $period, $cs) = @$f;
             $i++;
 
             #say "DEBUG: is_tainted \$dir? ".is_tainted($dir);
@@ -209,7 +205,7 @@ sub _rotate_and_delete {
             # case, _get_files)
             untaint \$orig;
 
-            if ( $i <= @$files - $self->{histories} ) {
+            if ($i <= @$files - $self->{histories}) {
                 say "DEBUG: Deleting old rotated file $dir/$orig$cs ..."
                     if $Debug;
                 if (unlink "$dir/$orig$cs") {
@@ -219,15 +215,14 @@ sub _rotate_and_delete {
                 }
                 next;
             }
-            if ( !$delete_only && defined($rotating_period) && $period eq $rotating_period ) {
+            if (!$delete_only && defined($rotating_period) && $period eq $rotating_period) {
                 my $new = $orig;
                 if ($rs) {
                     $new =~ s/\.(\d+)\z/"." . ($1+1)/e;
-                }
-                else {
+                } else {
                     $new .= ".1";
                 }
-                if ( $new ne $orig ) {
+                if ($new ne $orig) {
                     say "DEBUG: Renaming rotated file $dir/$orig$cs -> ".
                         "$dir/$new$cs ..." if $Debug;
                     if (rename "$dir/$orig$cs", "$dir/$new$cs") {
@@ -249,7 +244,7 @@ sub _open {
 
     my ($fp, $period) = $self->_file_path;
     open $self->{_fh}, ">>", $fp or die "Can't open '$fp': $!";
-    if ( defined $self->{binmode} ) {
+    if (defined $self->{binmode}) {
         binmode $self->{_fh}, $self->{binmode}
           or die "Can't set PerlIO layer on '$fp': $!";
     }
@@ -264,13 +259,13 @@ sub _open {
 sub _rotate_and_open {
 
     my $self = shift;
-    my ( $do_open, $do_rotate ) = @_;
+    my ($do_open, $do_rotate) = @_;
     my $fp = $self->_file_path;
     my %rotate_params = ();
 
   CASE:
     {
-        unless ( -e $fp ) {
+        unless (-e $fp) {
             $do_open++;
             $do_rotate++;
             $rotate_params{delete_only} = 1;
@@ -278,12 +273,12 @@ sub _rotate_and_open {
         }
 
         # file is not opened yet, open
-        unless ( $self->{_fh} ) {
+        unless ($self->{_fh}) {
             $self->_open;
         }
 
         # period has changed, rotate
-        if ( $self->{_fp} ne $fp ) {
+        if ($self->{_fp} ne $fp) {
             $do_rotate++;
             $rotate_params{delete_only} = 1;
             last CASE;
@@ -292,20 +287,18 @@ sub _rotate_and_open {
         # check whether size has been exceeded
         my $inode;
 
-        if ( $self->{size} > 0 ) {
+        if ($self->{size} > 0) {
 
             my @st   = stat( $self->{_fh} );
             my $size = $st[7];
             $inode = $st[1];
 
-            if ( $size >= $self->{size} ) {
+            if ($size >= $self->{size}) {
                 say "DEBUG: Size of $self->{_fp} is $size, exceeds $self->{size}, rotating ..."
                     if $Debug;
                 $do_rotate++;
                 last CASE;
-            }
-            else {
-
+            } else {
                 # stat the current file (not our handle _fp)
                 my @st = stat($fp);
                 die "Can't stat '$fp': $!" unless @st;
@@ -314,10 +307,9 @@ sub _rotate_and_open {
                 # check whether other process has rename/rotate under us (for
                 # example, 'prefix' has been moved to 'prefix.1'), in which case
                 # we need to reopen
-                if ( ( defined($inode) ) and ( $finode != $inode ) ) {
+                if (defined($inode) && $finode != $inode) {
                     $do_open++;
                 }
-
             }
 
         }
@@ -336,7 +328,7 @@ sub write {
     # FYI: if privilege is dropped from superuser, the failure is usually at
     # locking the lock file (permission denied).
 
-    my @msg = ( map( {@$_} @{ $self->{_buffer} } ), @_ );
+    my @msg = map( {@$_} @{ $self->{_buffer} } ), @_;
 
     eval {
         my $lock = $self->_get_lock;
@@ -355,12 +347,10 @@ sub write {
     my $err = $@;
 
     if ($err) {
-        if ( ( $self->{buffer_size} // 0 ) > @{ $self->{_buffer} } ) {
-
+        if (($self->{buffer_size} // 0) > @{ $self->{_buffer} }) {
             # put message to buffer temporarily
             push @{ $self->{_buffer} }, [@_];
-        }
-        else {
+        } else {
             # buffer is already full, let's dump the buffered + current message
             # to the die message anyway.
             die join(
@@ -389,7 +379,7 @@ sub compress {
     my $files_ref        = $self->_get_files;
     my $done_compression = 0;
 
-    if ( @{$files_ref} ) {
+    if (@{$files_ref}) {
         my $pid = Proc::PID::File->new(
             dir    => $self->{dir},
             name   => "$self->{prefix}-compress",
@@ -397,12 +387,12 @@ sub compress {
         );
         my $latest_period = $files_ref->[-1][2];
 
-        if ( $pid->alive ) {
+        if ($pid->alive) {
             warn "Another compression is in progress";
         } else {
             my @tocompress;
             #use DD; dd $self;
-            for my $file_ref ( @{$files_ref} ) {
+            for my $file_ref (@{$files_ref}) {
                 my ($orig, $rs, $period, $cs) = @{ $file_ref };
                 #say "D:compress: orig=<$orig> rs=<$rs> period=<$period> cs=<$cs>";
                 next if $cs; # already compressed
@@ -412,7 +402,7 @@ sub compress {
             }
 
             if (@tocompress) {
-                foreach my $file (@tocompress) {
+                for my $file (@tocompress) {
                     gzip( $file => "$file.gz" )
                         or do { warn "gzip failed: $GzipError\n"; next };
                     unlink $file;
