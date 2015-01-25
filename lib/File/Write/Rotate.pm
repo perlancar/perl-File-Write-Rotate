@@ -719,7 +719,7 @@ misconfigured will cause your logs to stop being rotated and grow indefinitely).
 =head2 What is the downside of using FWR (and LDFR)?
 
 Mainly (significant) performance overhead. At (almost) every C<write()>, FWR
-needs to check file sizes and dates for rotation. Under default configuration
+needs to check file sizes and/or dates for rotation. Under default configuration
 (where C<lock_mode> is C<write>), it also performs locking on each C<write()> to
 make it safe to use with multiple processes. Below is a casual benchmark to give
 a sense of the overhead, tested on my Core i5-2400 3.1GHz desktop:
@@ -730,6 +730,13 @@ C<lock_mode> C<none> or C<exclusive>, the speed is ~52k/s.
 
 However, this is not something you'll notice or need to worry about unless
 you're writing near that speed.
+
+If you need more speed, you can try setting C<rotate_probability> which will
+cause FWR to only check for rotation probabilistically, e.g. if you set this to
+0.1 then checks will only be done in about 1 of 10 writes. This can
+significantly reduce the overhead and increase write speed several times (e.g.
+5-8 times), but understand that this will make the writes "overflow" a bit, e.g.
+file sizes will exceed for a bit if you do size-based rotation.
 
 
 =head1 SEE ALSO
