@@ -21,20 +21,28 @@ our $Debug;
 
 sub new {
     my $class = shift;
-    my %args  = @_;
+    my %args0 = @_;
 
-    defined($args{dir})    or croak "Please specify dir";
-    defined($args{prefix}) or croak "Please specify prefix";
-    $args{suffix} //= "";
+    my %args;
 
-    $args{size} //= 0;
+    defined($args{dir} = delete $args0{dir})
+        or croak "Please specify dir";
+    defined($args{prefix} = delete $args0{prefix})
+        or croak "Please specify prefix";
+    $args{suffix} = delete($args0{suffix}) // "";
 
+    $args{size} = delete($args0{size}) // 0;
+
+    $args{period} = delete($args0{period});
     if ($args{period}) {
-        $args{period} =~ /daily|day|month|year/i
-          or croak "Invalid period, please use daily/monthly/yearly";
+        $args{period} =~ /\A(daily|day|month|monthly|year|yearly)\z/
+            or croak "Invalid period, please use daily/monthly/yearly";
     }
 
-    for (grep {/\Ahook_/} keys %args) {
+    for (map {"hook_$_"} qw(before_rotate after_rotate after_create
+                            before_write a)) {
+        next unless $args0{$_};
+        $args{$_} = delete($args0{$_});
         croak "Invalid $_, please supply a coderef"
             unless ref($args{$_}) eq 'CODE';
     }
@@ -43,13 +51,21 @@ sub new {
         $args{size} = 10 * 1024 * 1024;
     }
 
-    $args{histories} //= 10;
+    $args{histories} = delete($args0{histories}) // 10;
+
+    $args{binmode} = delete($args0{binmode});
+
+    $args{buffer_size} = delete($args0{buffer_size});
+
+    $args{lock_mode} = delete($args0{lock_mode}) // 'write';
+    $args{lock_mode} =~ /\A(none|write|exclusive)\z/
+        or croak "Invalid lock_mode, please use none/write/exclusive";
+
+    if (keys %args0) {
+        croak "Unknown arguments to new(): ".join(", ", sort keys %args0);
+    }
 
     $args{_buffer} = [];
-
-    $args{lock_mode} //= 'write';
-    $args{lock_mode} =~ /\A(none|write|exclusive)\z/
-      or croak "Invalid lock_mode, please use none/write/exclusive";
 
     my $self = bless \%args, $class;
 
@@ -95,9 +111,9 @@ sub _file_path {
     if ($self->{period}) {
         if ($self->{period} =~ /year/i) {
             $period = sprintf("%04d", $lt[5]);
-        } elsif ($self->{period} =~ /month/i) {
+        } elsif ($self->{period} =~ /month/) {
             $period = sprintf("%04d-%02d", $lt[5], $lt[4]);
-        } elsif ($self->{period} =~ /day|daily/i) {
+        } elsif ($self->{period} =~ /day|daily/) {
             $period = sprintf("%04d-%02d-%02d", $lt[5], $lt[4], $lt[3]);
         }
     } else {
@@ -537,6 +553,8 @@ This hook can be used to write a header to each file, e.g.:
 
 Since this is called indirectly by write(), locking is also already done.
 
+=head2 binmode => str
+
 
 =head1 METHODS
 
@@ -641,6 +659,8 @@ acquire lock, will die if failed to acquire lock.
 =item * hook_after_create => CODE
 
 See L</ATTRIBUTES>.
+
+=item * buffer_size => int
 
 =back
 
