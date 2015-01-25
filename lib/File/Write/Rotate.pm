@@ -328,7 +328,7 @@ sub write {
     # FYI: if privilege is dropped from superuser, the failure is usually at
     # locking the lock file (permission denied).
 
-    my @msg = (map {@$_} @{ $self->{_buffer} } ), @_;
+    my @msg = (map( {@$_} @{ $self->{_buffer} } ), @_);
 
     eval {
         my $lock = $self->_get_lock;
