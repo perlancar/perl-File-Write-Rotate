@@ -289,7 +289,7 @@ sub _rotate_and_open {
     {
         # if instructed, only do rotate some of the time to shave overhead
         if ($self->{rotate_probability} && $self->{_fh}) {
-            last CASE unless rand() > $self->{rotate_probability};
+            last CASE if rand() > $self->{rotate_probability};
         }
 
         $fp = $self->_file_path;
