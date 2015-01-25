@@ -61,6 +61,12 @@ sub new {
     $args{lock_mode} =~ /\A(none|write|exclusive)\z/
         or croak "Invalid lock_mode, please use none/write/exclusive";
 
+    $args{rotate_probability} = delete($args0{rotate_probability});
+    if (defined $args{rotate_probability}) {
+        $args{rotate_probability} > 0 && $args{rotate_probability} < 1.0
+            or croak "Invalid rotate_probability, must be 0 < x < 1";
+    }
+
     if (keys %args0) {
         croak "Unknown arguments to new(): ".join(", ", sort keys %args0);
     }
@@ -276,11 +282,17 @@ sub _rotate_and_open {
 
     my $self = shift;
     my ($do_open, $do_rotate) = @_;
-    my $fp = $self->_file_path;
-    my %rotate_params = ();
+    my $fp;
+    my %rotate_params;
 
   CASE:
     {
+        # if instructed, only do rotate some of the time to shave overhead
+        if ($self->{rotate_probability} && $self->{_fh}) {
+            last CASE unless rand() > $self->{rotate_probability};
+        }
+
+        $fp = $self->_file_path;
         unless (-e $fp) {
             $do_open++;
             $do_rotate++;
@@ -661,6 +673,12 @@ acquire lock, will die if failed to acquire lock.
 See L</ATTRIBUTES>.
 
 =item * buffer_size => int
+
+=item * rotate_probability => float (between 0 < x < 1)
+
+If set, instruct to only check for rotation under a certain probability, for
+example if value is set to 0.1 then will only check for rotation 10% of the
+time.
 
 =back
 
