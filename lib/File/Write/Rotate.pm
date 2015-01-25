@@ -23,8 +23,8 @@ sub new {
     my $class = shift;
     my %args  = @_;
 
-    defined( $args{dir} )    or croak "Please specify dir";
-    defined( $args{prefix} ) or croak "Please specify prefix";
+    defined($args{dir})    or croak "Please specify dir";
+    defined($args{prefix}) or croak "Please specify prefix";
     $args{suffix} //= "";
 
     $args{size} //= 0;
@@ -87,7 +87,7 @@ sub _file_path {
     # _now is calculated every time we access this method
     $self->{_now} = time();
 
-    my @lt = localtime( $self->{_now} );
+    my @lt = localtime($self->{_now});
     $lt[5] += 1900;
     $lt[4]++;
 
@@ -129,7 +129,7 @@ sub _get_lock {
     return $self->{_weak_lock} if defined($self->{_weak_lock});
 
     require File::Flock::Retry;
-    my $lock = File::Flock::Retry->lock( $self->lock_file_path );
+    my $lock = File::Flock::Retry->lock($self->lock_file_path);
     $self->{_weak_lock} = $lock;
     weaken $self->{_weak_lock};
     return $lock;
@@ -289,7 +289,7 @@ sub _rotate_and_open {
 
         if ($self->{size} > 0) {
 
-            my @st   = stat( $self->{_fh} );
+            my @st   = stat($self->{_fh});
             my $size = $st[7];
             $inode = $st[1];
 
@@ -328,7 +328,7 @@ sub write {
     # FYI: if privilege is dropped from superuser, the failure is usually at
     # locking the lock file (permission denied).
 
-    my @msg = map( {@$_} @{ $self->{_buffer} } ), @_;
+    my @msg = (map {@$_} @{ $self->{_buffer} } ), @_;
 
     eval {
         my $lock = $self->_get_lock;
@@ -359,7 +359,7 @@ sub write {
                 (
                     @{ $self->{_buffer} }
                     ? " (buffer is full, "
-                      . scalar( @{ $self->{_buffer} } )
+                      . ~~@{ $self->{_buffer} }
                       . " message(s))"
                     : ""
                 ),
@@ -398,12 +398,12 @@ sub compress {
                 next if $cs; # already compressed
                 next if !$self->{period} && !$rs; # not old file
                 next if  $self->{period} && $period eq $latest_period; # not old file
-                push @tocompress, File::Spec->catfile( $self->{dir}, $orig );
+                push @tocompress, File::Spec->catfile($self->{dir}, $orig);
             }
 
             if (@tocompress) {
                 for my $file (@tocompress) {
-                    gzip( $file => "$file.gz" )
+                    gzip($file => "$file.gz")
                         or do { warn "gzip failed: $GzipError\n"; next };
                     unlink $file;
                 }
