@@ -736,7 +736,9 @@ cause FWR to only check for rotation probabilistically, e.g. if you set this to
 0.1 then checks will only be done in about 1 of 10 writes. This can
 significantly reduce the overhead and increase write speed several times (e.g.
 5-8 times), but understand that this will make the writes "overflow" a bit, e.g.
-file sizes will exceed for a bit if you do size-based rotation.
+file sizes will exceed for a bit if you do size-based rotation. More suitable if
+you only do size-based rotation since it is usually okay to exceed sizes for a
+bit.
 
 
 =head1 SEE ALSO

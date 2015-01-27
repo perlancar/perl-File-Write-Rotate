@@ -1,5 +1,14 @@
 Revision history for File-Write-Rotate
 
+0.28    2015-01-26 (PERLANCAR)
+
+        - Now check argument to new(), unknown arguments will croak.
+
+        - Add option: rotate_probability, to increase writing speed by only
+          doing rotate checks probabilistically, at the consequence of writes
+          "spilling" for a bit.
+
+
 0.27    2015-01-23 (PERLANCAR)
 
         - No functional changes.
