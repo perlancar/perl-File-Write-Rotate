@@ -366,9 +366,7 @@ sub write {
         $self->{hook_before_write}->($self, \@msg, $self->{_fh})
             if $self->{hook_before_write};
 
-        # syntax limitation? can't do print $self->{_fh} ... directly
-        my $fh = $self->{_fh};
-        print $fh @msg;
+        print { $self->{_fh} } @msg;
         $self->{_buffer} = [];
 
     };
