@@ -14,7 +14,7 @@ use Carp;
 use File::Spec;
 use IO::Compress::Gzip qw(gzip $GzipError);
 use Scalar::Util qw(weaken);
-use Taint::Runtime qw(untaint is_tainted);
+#use Taint::Runtime qw(untaint is_tainted);
 use Time::HiRes 'time';
 
 our $Debug;
@@ -225,7 +225,8 @@ sub _rotate_and_delete {
 
             # TODO actually, it's more proper to taint near the source (in this
             # case, _get_files)
-            untaint \$orig;
+            #untaint \$orig;
+            ($orig) = $orig =~ /(.*)/s; # we use this instead, no module needed
 
             if ($i <= @$files - $self->{histories}) {
                 say "DEBUG: Deleting old rotated file $dir/$orig$cs ..."
