@@ -386,7 +386,7 @@ sub write {
                 (
                     @{ $self->{_buffer} }
                     ? " (buffer is full, "
-                      . ~~@{ $self->{_buffer} }
+                      . scalar(@{ $self->{_buffer} })
                       . " message(s))"
                     : ""
                 ),
