@@ -7,7 +7,7 @@ use Test::More 0.98;
 
 use File::chdir;
 use File::Path qw(remove_tree);
-use File::Slurp::Tiny qw(read_file write_file);
+use File::Slurper qw(read_text write_text);
 use File::Temp qw(tempdir);
 use File::Write::Rotate;
 use Taint::Runtime qw(untaint);
@@ -22,19 +22,19 @@ test_rotate(
     args   => [prefix=>"a", histories=>3],
     files_before  => [qw/a a.1 a.2.gz a.3  b b.1 b.2 b.3 b.4/],
     before_rotate => sub {
-        write_file("a"  ,    "zero");
-        write_file("a.1",    "one");
-        write_file("a.2.gz", "two");
+        write_text("a"  ,    "zero");
+        write_text("a.1",    "one");
+        write_text("a.2.gz", "two");
 
-        write_file("b.1"   , "untouched");
+        write_text("b.1"   , "untouched");
     },
     files_after   => [qw/a.1 a.2 a.3.gz    b b.1 b.2 b.3 b.4/],
     after_rotate  => sub {
-        is(~~read_file("a.1"),    "zero", "a -> a.1");
-        is(~~read_file("a.2"),    "one",  "a.2 -> a.2.gz");
-        is(~~read_file("a.3.gz"), "two",  "a.2.gz -> a.3.gz");
+        is(scalar read_text("a.1"),    "zero", "a -> a.1");
+        is(scalar read_text("a.2"),    "one",  "a.2 -> a.2.gz");
+        is(scalar read_text("a.3.gz"), "two",  "a.2.gz -> a.3.gz");
 
-        is(~~read_file("b.1"), "untouched",  "b.1 untouched");
+        is(scalar read_text("b.1"), "untouched",  "b.1 untouched");
     },
 );
 
@@ -118,7 +118,7 @@ test_rotate(
         args   => [prefix=>"a", histories=>3],
         files_before  => [qw/a a.1 a.2 a.3/],
         before_rotate => sub {
-            write_file($_, "") for (qw/a a.1 a.2 a.3/);
+            write_text($_, "") for (qw/a a.1 a.2 a.3/);
         },
         files_after   => [qw/a.1 a.2 a.3/],
         after_rotate  => sub {
@@ -154,7 +154,7 @@ sub test_rotate {
             remove_tree($e);
         }
 
-        write_file($_, "") for @{$args{files_before}};
+        write_text($_, "") for @{$args{files_before}};
         $args{before_rotate}->($fwr) if $args{before_rotate};
 
         $fwr->_rotate_and_delete($args{rotate_args} ? @{$args{rotate_args}} : ());
