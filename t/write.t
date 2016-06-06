@@ -6,7 +6,7 @@ use warnings;
 
 use File::chdir;
 use File::Path qw(remove_tree);
-use File::Slurp::Tiny qw(read_file write_file);
+use File::Slurper qw(read_text write_text);
 use File::Temp qw(tempdir);
 use File::Write::Rotate;
 use Monkey::Patch::Action qw(patch_package);
@@ -27,9 +27,9 @@ test_filehandle_cache(
         my ($writer) = @_;
         delete_all_files();
         $writer->("[1]");
-        is(scalar read_file("a"), "[1]");
+        is(scalar read_text("a"), "[1]");
         $writer->("[2]", "[3]");
-        is(scalar read_file("a"), "[1][2][3]");
+        is(scalar read_text("a"), "[1][2][3]");
     }
 );
 
@@ -48,7 +48,7 @@ test_filehandle_cache(
         };
         ok(!(grep { $_ =~ /wide character/i } @warnings),
            "no 'Wide character in ...' warning");
-        is(scalar read_file("a", binmode => ':utf8'), $text, "file contents");
+        is(scalar read_text("a"), $text, "file contents");
     }
 );
 
@@ -60,10 +60,10 @@ test_filehandle_cache(
         delete_all_files();
         is(($get_fwr->()->_file_path())[1], "", "period");
         $writer->("[1]");
-        is(scalar read_file("a"), "[1]");
+        is(scalar read_text("a"), "[1]");
         $writer->("[2]", "[3]");
-        is(scalar read_file("a"), "[2][3]");
-        is(scalar read_file("a.1"), "[1]");
+        is(scalar read_text("a"), "[2][3]");
+        is(scalar read_text("a.1"), "[1]");
     }
 );
 
@@ -106,12 +106,12 @@ test_filehandle_cache(
         $ph = set_time_to(1356090474); # 2012-12-21 @UTC
         is(($get_fwr->()->_file_path())[1], "2012-12-21", "period");
         $writer->("[1]");
-        is(scalar read_file("a.2012-12-21"), "[1]", 'got expected content in the file (1)');
+        is(scalar read_text("a.2012-12-21"), "[1]", 'got expected content in the file (1)');
         $writer->("[2]", "[3]");
-        is(scalar read_file("a.2012-12-21"), "[1][2][3]", 'got expected content in the file (2)');
+        is(scalar read_text("a.2012-12-21"), "[1][2][3]", 'got expected content in the file (2)');
         $ph = set_time_to(1356090474 + 86400); # 2012-12-22 @UTC
         $writer->("[4]");
-        is(scalar read_file("a.2012-12-22"), "[4]", 'got expected content in the file (3)');
+        is(scalar read_text("a.2012-12-22"), "[4]", 'got expected content in the file (3)');
         #list_files();
         test_gzip($get_fwr->(), ['a.2012-12-21']);
     }
@@ -128,13 +128,13 @@ test_filehandle_cache(
         $ph = set_time_to(1356090474); # 2012-12-21 @UTC
         is(($get_fwr->()->_file_path())[1], "2012-12", "period");
         $writer->("[1]");
-        is(scalar read_file("a.2012-12"), "[1]");
+        is(scalar read_text("a.2012-12"), "[1]");
         $writer->("[2]", "[3]");
-        is(scalar read_file("a.2012-12"), "[1][2][3]");
+        is(scalar read_text("a.2012-12"), "[1][2][3]");
 
         $ph = set_time_to(1356090474 + 31*86400); # 2013-01-21 @UTC
         $writer->("[4]");
-        is(scalar read_file("a.2013-01"), "[4]");
+        is(scalar read_text("a.2013-01"), "[4]");
         test_gzip($get_fwr->(), ['a.2012-12']);
     }
 );
@@ -150,13 +150,13 @@ test_filehandle_cache(
         $ph = set_time_to(1356090474); # 2012-12-21 @UTC
         is(($get_fwr->()->_file_path())[1], "2012", "period");
         $writer->("[1]");
-        is(scalar read_file("a.2012"), "[1]");
+        is(scalar read_text("a.2012"), "[1]");
         $writer->("[2]", "[3]");
-        is(scalar read_file("a.2012"), "[1][2][3]");
+        is(scalar read_text("a.2012"), "[1][2][3]");
 
         $ph = set_time_to(1356090474 + 31*86400); # 2013-01-21 @UTC
         $writer->("[4]");
-        is(scalar read_file("a.2013"), "[4]");
+        is(scalar read_text("a.2013"), "[4]");
         test_gzip($get_fwr->(), ['a.2012']);
     }
 );
@@ -172,18 +172,18 @@ test_filehandle_cache(
         $ph = set_time_to(1356090474); # 2012-12-21 @UTC
         is(($get_fwr->()->_file_path())[1], "2012-12-21", "period");
         $writer->("[1]");
-        is(scalar read_file("a.2012-12-21.log"), "[1]");
+        is(scalar read_text("a.2012-12-21.log"), "[1]");
         $writer->("[2]", "[3]");
-        is(scalar read_file("a.2012-12-21.log"), "[2][3]");
-        is(scalar read_file("a.2012-12-21.log.1"), "[1]");
+        is(scalar read_text("a.2012-12-21.log"), "[2][3]");
+        is(scalar read_text("a.2012-12-21.log.1"), "[1]");
         $writer->("[4]");
-        is(scalar read_file("a.2012-12-21.log"), "[4]");
-        is(scalar read_file("a.2012-12-21.log.1"), "[2][3]");
-        is(scalar read_file("a.2012-12-21.log.2"), "[1]");
+        is(scalar read_text("a.2012-12-21.log"), "[4]");
+        is(scalar read_text("a.2012-12-21.log.1"), "[2][3]");
+        is(scalar read_text("a.2012-12-21.log.2"), "[1]");
 
         $ph = set_time_to(1356090474 + 86400); # 2012-12-22 @UTC
         $writer->("[5]");
-        is(scalar read_file("a.2012-12-22.log"), "[5]");
+        is(scalar read_text("a.2012-12-22.log"), "[5]");
         test_gzip($get_fwr->(), ['a.2012-12-21.log', 'a.2012-12-21.log.1', 'a.2012-12-21.log.2']);
     }
 );
@@ -196,13 +196,13 @@ test_filehandle_cache(
         delete_all_files();
         my $fwr2 = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>3);
         $writer->("[1.1]");
-        is(scalar read_file("a"), "[1.1]");
+        is(scalar read_text("a"), "[1.1]");
         $fwr2->write("[2.1]");
-        is(scalar read_file("a"), "[2.1]");
-        is(scalar read_file("a.1"), "[1.1]");
+        is(scalar read_text("a"), "[2.1]");
+        is(scalar read_text("a.1"), "[1.1]");
         $writer->("[1.2]");
-        is(scalar read_file("a"), "[2.1][1.2]");
-        is(scalar read_file("a.1"), "[1.1]");
+        is(scalar read_text("a"), "[2.1][1.2]");
+        is(scalar read_text("a.1"), "[1.1]");
         test_gzip($get_fwr1->(), ['a.1']);
     }
 );
@@ -211,11 +211,11 @@ test_filehandle_cache(
 # file won't get rotated at all.
 subtest "rotate on first write()" => sub {
     delete_all_files();
-    write_file("$dir/a", "123");
+    write_text("$dir/a", "123");
     my $fwr = File::Write::Rotate->new(dir=>$dir, prefix=>"a", size=>3);
     $fwr->write("[1]");
-    is(scalar read_file("a"), "[1]");
-    is(scalar read_file("a.1"), "123");
+    is(scalar read_text("a"), "[1]");
+    is(scalar read_text("a.1"), "123");
     test_gzip($fwr, ['a.1']);
 };
 
@@ -253,9 +253,9 @@ subtest "buffer (success), hook_before_write" => sub {
 
     $fwr->write("[3]");
 
-    is(scalar read_file("a"), "[1][2][3]", "buffered messages gets logged");
+    is(scalar read_text("a"), "[1][2][3]", "buffered messages gets logged");
     $fwr->write("[4]");
-    is(scalar read_file("a"), "[1][2][3][4]", "buffered is emptied");
+    is(scalar read_text("a"), "[1][2][3][4]", "buffered is emptied");
     ok((! -e $fwr->lock_file_path), "should be unlocked");
 };
 
@@ -286,7 +286,7 @@ subtest "hook_after_create" => sub {
         },
     );
     $fwr->write("[1]");
-    is(scalar read_file("a"), "header\n[1]");
+    is(scalar read_text("a"), "header\n[1]");
 };
 
 test_filehandle_cache(
@@ -404,7 +404,7 @@ sub list_files {
 
 sub get_file_contents {
     my $files = get_files();
-    return { map { $_ => scalar read_file($_) } @$files };
+    return { map { $_ => scalar read_text($_) } @$files };
 }
 
 our $Time;
