@@ -1,5 +1,13 @@
 Revision history for File-Write-Rotate
 
+0.30    2016-06-06 (PERLANCAR)
+
+        - No functional changes.
+
+        - Replace inchworm operator with plain 'scalar', causes error in 5.24+
+          [RT#115088] (ref: RT#111786).
+
+
 0.29    2015-10-20 (PERLANCAR)
 
 	- No functional changes.
