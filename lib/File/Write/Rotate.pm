@@ -399,13 +399,13 @@ sub write {
 sub compress {
     my ($self) = shift;
 
-    require Proc::PID::File;
-
     my $lock           = $self->_get_lock;
     my $files_ref        = $self->_get_files;
     my $done_compression = 0;
 
     if (@{$files_ref}) {
+        require Proc::PID::File;
+
         my $pid = Proc::PID::File->new(
             dir    => $self->{dir},
             name   => "$self->{prefix}-compress",
