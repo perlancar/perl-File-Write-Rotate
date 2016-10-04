@@ -10,7 +10,6 @@ use warnings;
 # we must not use Log::Any, looping if we are used as log output
 #use Log::Any '$log';
 
-use Carp;
 use File::Spec;
 use IO::Compress::Gzip qw(gzip $GzipError);
 use Scalar::Util qw(weaken);
@@ -26,9 +25,9 @@ sub new {
     my %args;
 
     defined($args{dir} = delete $args0{dir})
-        or croak "Please specify dir";
+        or die "Please specify dir";
     defined($args{prefix} = delete $args0{prefix})
-        or croak "Please specify prefix";
+        or die "Please specify prefix";
     $args{suffix} = delete($args0{suffix}) // "";
 
     $args{size} = delete($args0{size}) // 0;
@@ -36,14 +35,14 @@ sub new {
     $args{period} = delete($args0{period});
     if ($args{period}) {
         $args{period} =~ /\A(daily|day|month|monthly|year|yearly)\z/
-            or croak "Invalid period, please use daily/monthly/yearly";
+            or die "Invalid period, please use daily/monthly/yearly";
     }
 
     for (map {"hook_$_"} qw(before_rotate after_rotate after_create
                             before_write a)) {
         next unless $args0{$_};
         $args{$_} = delete($args0{$_});
-        croak "Invalid $_, please supply a coderef"
+        die "Invalid $_, please supply a coderef"
             unless ref($args{$_}) eq 'CODE';
     }
 
@@ -59,16 +58,16 @@ sub new {
 
     $args{lock_mode} = delete($args0{lock_mode}) // 'write';
     $args{lock_mode} =~ /\A(none|write|exclusive)\z/
-        or croak "Invalid lock_mode, please use none/write/exclusive";
+        or die "Invalid lock_mode, please use none/write/exclusive";
 
     $args{rotate_probability} = delete($args0{rotate_probability});
     if (defined $args{rotate_probability}) {
         $args{rotate_probability} > 0 && $args{rotate_probability} < 1.0
-            or croak "Invalid rotate_probability, must be 0 < x < 1";
+            or die "Invalid rotate_probability, must be 0 < x < 1";
     }
 
     if (keys %args0) {
-        croak "Unknown arguments to new(): ".join(", ", sort keys %args0);
+        die "Unknown arguments to new(): ".join(", ", sort keys %args0);
     }
 
     $args{_buffer} = [];
