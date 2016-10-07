@@ -565,6 +565,9 @@ Since this is called indirectly by write(), locking is also already done.
 
 =head2 binmode => str
 
+Will call C<binmode()> (see L<perlfunc>) on the opened file handle. With this
+option you can set binary mode (e.g. on Windows) or set PerlIO layer(s).
+
 
 =head1 METHODS
 
