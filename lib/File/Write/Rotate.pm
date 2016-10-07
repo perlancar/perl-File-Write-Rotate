@@ -267,8 +267,13 @@ sub _open {
     my ($fp, $period) = $self->_file_path;
     open $self->{_fh}, ">>", $fp or die "Can't open '$fp': $!";
     if (defined $self->{binmode}) {
-        binmode $self->{_fh}, $self->{binmode}
-          or die "Can't set PerlIO layer on '$fp': $!";
+        if ($self->{binmode} eq "1") {
+            binmode $self->{_fh};
+        } else {
+            binmode $self->{_fh}, $self->{binmode}
+                or die "Can't set PerlIO layer on '$fp' ".
+                    "to '$self->{binmode}': $!";
+        }
     }
     my $oldfh = select $self->{_fh};
     $| = 1;
@@ -565,8 +570,16 @@ Since this is called indirectly by write(), locking is also already done.
 
 =head2 binmode => str
 
-Will call C<binmode()> (see L<perlfunc>) on the opened file handle. With this
-option you can set binary mode (e.g. on Windows) or set PerlIO layer(s).
+If set to "1", will cause the file handle to be set:
+
+ binmode $fh;
+
+which might be necessary on some OS, e.g. Windows when writing binary data.
+Otherwise, other defined values will cause the file handle to be set:
+
+ binmode $fh, $value
+
+which can be used to set PerlIO layer(s).
 
 
 =head1 METHODS
