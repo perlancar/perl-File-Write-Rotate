@@ -1,5 +1,14 @@
 Revision history for File-Write-Rotate
 
+0.31    2016-10-07 (PERLANCAR)
+
+        - Document binmode option [GH#12] [GH#13].
+
+        - Remove usage of Carp to shave a bit off startup overhead.
+
+        - Delay loading Proc::PID::File a bit more.
+
+
 0.30    2016-06-06 (PERLANCAR)
 
         - No functional changes.
