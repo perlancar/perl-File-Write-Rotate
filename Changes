@@ -1,5 +1,3 @@
-Revision history for File-Write-Rotate
-
 0.31    2016-10-07 (PERLANCAR)
 
         - Document binmode option [GH#12] [GH#13].
