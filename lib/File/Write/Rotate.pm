@@ -406,12 +406,6 @@ sub write {
 sub flush {
 }
 
-sub close {
-    my $self = shift;
-    undef $self->{_weak_lock};
-    undef $self->{_fh};
-}
-
 sub compress {
     my ($self) = shift;
 
@@ -723,12 +717,6 @@ Does not append newline so you'll have to do it yourself.
 =head2 $fwr->flush
 
 A no-op, just so the object behaves more like a filehandle object.
-
-=head2 $fwr->close
-
-Provided to make the object behaves more like a filehandle object. This method
-will close the filehandle (by undef-ing the handle) as well as releasing the
-lock (by undef-ing the File::Flock::Retry object).
 
 =head2 $fwr->compress
 
