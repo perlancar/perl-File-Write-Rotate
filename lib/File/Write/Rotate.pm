@@ -1,3 +1,5 @@
+## no critic: InputOutput::ProhibitOneArgSelect
+
 package File::Write::Rotate;
 
 # DATE
@@ -169,7 +171,7 @@ sub _get_files {
 
     my @files;
     while (my $e = readdir($dh)) {
-        my $cs = $1 if $e =~ s/(\.gz)\z//; # compress suffix
+        my $cs; $cs = $1 if $e =~ s/(\.gz)\z//; # compress suffix
         next unless $e =~ /\A\Q$self->{prefix}\E
                            (?:\. (?<period>\d{4}(?:-\d\d(?:-\d\d)?)?) )?
                            \Q$self->{suffix}\E
