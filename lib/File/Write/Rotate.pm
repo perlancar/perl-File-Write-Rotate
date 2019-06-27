@@ -401,9 +401,6 @@ sub write {
     }
 }
 
-sub flush {
-}
-
 sub compress {
     my ($self) = shift;
 
@@ -711,10 +708,6 @@ exceeds specified limit. When rotating, will only keep a specified number of
 histories and delete the older ones.
 
 Does not append newline so you'll have to do it yourself.
-
-=head2 $fwr->flush
-
-A no-op, just so the object behaves more like a filehandle object.
 
 =head2 $fwr->compress
 
