@@ -1,3 +1,5 @@
+## no critic: InputOutput::ProhibitOneArgSelect
+
 package File::Write::Rotate;
 
 # DATE
@@ -169,7 +171,7 @@ sub _get_files {
 
     my @files;
     while (my $e = readdir($dh)) {
-        my $cs = $1 if $e =~ s/(\.gz)\z//; # compress suffix
+        my $cs; $cs = $1 if $e =~ s/(\.gz)\z//; # compress suffix
         next unless $e =~ /\A\Q$self->{prefix}\E
                            (?:\. (?<period>\d{4}(?:-\d\d(?:-\d\d)?)?) )?
                            \Q$self->{suffix}\E
@@ -753,6 +755,10 @@ significantly reduce the overhead and increase write speed several times (e.g.
 file sizes will exceed for a bit if you do size-based rotation. More suitable if
 you only do size-based rotation since it is usually okay to exceed sizes for a
 bit.
+
+=head2 I want a filehandle instead of a File::Write::Rotate object!
+
+Use L<Tie::Handle::FileWriteRotate>.
 
 
 =head1 SEE ALSO
